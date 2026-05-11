@@ -18,6 +18,8 @@ applyTo: "src/components/**"
 - All complex logic **MUST** be in custom hooks — components only render.
 - Prefer **Composition** over prop drilling (max 3 levels).
 - Avoid nested ternary > 2 levels → extract into variables or sub-components.
+- Use and style color with index.css
+- Make sure responsive design is implemented for all components and fit various screen sizes.
 
 ### Props
 
