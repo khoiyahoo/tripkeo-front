@@ -9,7 +9,6 @@ applyTo: "src/**/*.{css,tsx,jsx}"
 ### Tailwind CSS Colors
 
 - All colors **MUST** be defined in a **single global file**:
-  - Tailwind < v4: `tailwind.config.js` → `theme.extend.colors`
   - Tailwind v4: `index.css` → `@theme`
 - Colors grouped by category: `primary`, `secondary`, `neutral`, `success`, `warning`, `error`.
 - Sorted light → dark (50 → 950).
