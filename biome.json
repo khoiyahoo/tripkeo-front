@@ -1,0 +1,102 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "react": "recommended"
+    },
+    "includes": ["**/src/**", "!**/src/stories"],
+    "rules": {
+      "recommended": true,
+      "nursery": {
+        "useSortedClasses": {
+          "fix": "safe",
+          "level": "error",
+          "options": {
+            "functions": ["cn", "clsx", "twMerge", "cva"]
+          }
+        }
+      },
+      "style": {
+        "useConsistentCurlyBraces": "error",
+        "useBlockStatements": "off",
+        "useExportType": "error",
+        "noNonNullAssertion": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noInvalidUseBeforeDeclaration": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "useAwait": "error",
+        "noConsole": "warn",
+        "noDebugger": "error",
+        "noEmptyBlockStatements": "error",
+        "noVar": "error",
+        "noArrayIndexKey": "warn"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "es5",
+      "semicolons": "always",
+      "indentStyle": "space",
+      "indentWidth": 2
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              ":PACKAGE:",
+              ":BLANK_LINE:",
+              [
+                "@/components/**",
+                "@/constants/**",
+                "@/hooks/**",
+                "@/interfaces/**",
+                "@/layouts/**",
+                "@/lib/**",
+                "@/pages/**",
+                "@/services/**",
+                "@/stores/**",
+                "@/utils/**"
+              ],
+              ":BLANK_LINE:",
+              ["@/assets/**"],
+              ":BLANK_LINE:",
+              ["./**"]
+            ]
+          }
+        }
+      }
+    }
+  }
+}
