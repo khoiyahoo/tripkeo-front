@@ -8,8 +8,13 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { LoginDialog } from "@/components/organisms/LoginDialog";
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
+import CreateTripPage from "@/pages/CreateTripPage";
+import FriendsPage from "@/pages/FriendsPage";
 import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
+import ProfilePage from "@/pages/ProfilePage";
+import SettingsPage from "@/pages/SettingsPage";
+import TripDetailPage from "@/pages/TripDetailPage";
 import { useAuthStore } from "@/stores/authStore";
 
 const RootComponent = () => {
@@ -18,8 +23,13 @@ const RootComponent = () => {
 
   if (!isInitialized) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+          <span className="font-medium text-on-surface-variant text-sm">
+            Đang tải...
+          </span>
+        </div>
       </div>
     );
   }
@@ -49,7 +59,45 @@ const loginRoute = createRoute({
   component: LoginPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, loginRoute]);
+const createTripRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trips/create",
+  component: CreateTripPage,
+});
+
+const tripDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trips/$tripId",
+  component: TripDetailPage,
+});
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  component: ProfilePage,
+});
+
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
+const friendsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/friends",
+  component: FriendsPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  loginRoute,
+  createTripRoute,
+  tripDetailRoute,
+  profileRoute,
+  settingsRoute,
+  friendsRoute,
+]);
 
 export const router = createRouter({
   routeTree,

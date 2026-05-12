@@ -1,4 +1,4 @@
-import type { ActivityType, ExpenseCategory } from "@/types/database";
+import type { ActivityType, ExpenseCategory } from "@/types/trip";
 
 export const ACTIVITY_TYPE_CONFIG: Record<
   ActivityType,
