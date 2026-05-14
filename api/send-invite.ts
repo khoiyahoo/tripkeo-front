@@ -1,12 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).end();
+  }
+
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    return res.status(500).json({
+      error: "Server is missing RESEND_API_KEY",
+    });
   }
 
   const { toEmail, fromName, tripName, role, inviteLink } = req.body ?? {};
@@ -18,6 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const roleLabel = role === "editor" ? "Biên tập" : "Xem";
   const senderEmail =
     process.env.SENDER_EMAIL ?? "TripKeo <onboarding@resend.dev>";
+  const resend = new Resend(resendApiKey);
 
   try {
     await resend.emails.send({

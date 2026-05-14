@@ -16,6 +16,9 @@ export const sendInviteEmail = async (
   });
 
   if (!res.ok) {
-    throw new Error("Failed to send invitation email");
+    const payload = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(payload?.error ?? "Failed to send invitation email");
   }
 };
