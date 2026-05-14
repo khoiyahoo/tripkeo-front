@@ -121,17 +121,13 @@ export const useTripMembers = (
       );
 
       const appUrl = window.location.origin;
-      try {
-        await sendInviteEmail({
-          toEmail: input.email,
-          fromName: user.displayName ?? "Người dùng TripKeo",
-          tripName,
-          role: input.role,
-          inviteLink: `${appUrl}/invite/${inviteCode}`,
-        });
-      } catch {
-        // Email failed but invitation doc was created — user can still share link
-      }
+      await sendInviteEmail({
+        toEmail: input.email,
+        fromName: user.displayName ?? "Người dùng TripKeo",
+        tripName,
+        role: input.role,
+        inviteLink: `${appUrl}/invite/${inviteCode}`,
+      });
 
       return inviteCode;
     },

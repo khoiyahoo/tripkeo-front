@@ -81,8 +81,21 @@ export const MembersTab = ({
       await onInviteMember({ email, role: inviteRole });
       toast.success(`Đã gửi lời mời đến ${email}`);
       setInviteEmail("");
-    } catch {
-      toast.error("Không thể gửi lời mời. Vui lòng thử lại.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (
+        message.includes("RESEND_API_KEY") ||
+        message.includes("send email") ||
+        message.includes("Failed to send")
+      ) {
+        // Invitation created but email failed — user can still share the link
+        toast.warning(
+          "Lời mời đã được tạo nhưng không thể gửi email. Hãy chia sẻ link thủ công."
+        );
+        setInviteEmail("");
+      } else {
+        toast.error("Không thể gửi lời mời. Vui lòng thử lại.");
+      }
     } finally {
       setIsSubmitting(false);
     }

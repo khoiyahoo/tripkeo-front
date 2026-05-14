@@ -7,10 +7,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).end();
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = process.env.VITE_RESEND_API_KEY;
   if (!resendApiKey) {
     return res.status(500).json({
-      error: "Server is missing RESEND_API_KEY",
+      error: "Server is missing VITE_RESEND_API_KEY",
     });
   }
 
@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const roleLabel = role === "editor" ? "Biên tập" : "Xem";
   const senderEmail =
-    process.env.SENDER_EMAIL ?? "TripKeo <onboarding@resend.dev>";
+    process.env.VITE_SENDER_EMAIL ?? "TripKeo <onboarding@resend.dev>";
   const resend = new Resend(resendApiKey);
 
   try {
