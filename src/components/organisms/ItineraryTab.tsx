@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { LucideIcon } from "lucide-react";
 import {
   ExternalLink,
+  Eye,
   Loader2,
   MapPin,
   Moon,
@@ -253,7 +254,7 @@ const SortableActivityRow = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: activity.id, disabled: isEditing });
+  } = useSortable({ id: activity.id, disabled: isEditing || !canEdit });
 
   if (isEditing) {
     return (
@@ -725,6 +726,7 @@ const PeriodSection = ({
   editingActivityId,
   setEditingActivityId,
   canEditActivity,
+  canAdd,
 }: {
   period: TimePeriod;
   activities: ActivityWithId[];
@@ -742,6 +744,7 @@ const PeriodSection = ({
   editingActivityId: string | null;
   setEditingActivityId: (id: string | null) => void;
   canEditActivity: (a: ActivityWithId) => boolean;
+  canAdd: boolean;
 }) => {
   const { label } = TIME_PERIOD_CONFIG[period];
   const ui = PERIOD_UI[period];
@@ -806,7 +809,7 @@ const PeriodSection = ({
             }}
           />
         </div>
-      ) : (
+      ) : canAdd ? (
         <div className="px-4 pt-1.5 pb-3">
           <button
             type="button"
@@ -817,7 +820,7 @@ const PeriodSection = ({
             Thêm hoạt động
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
@@ -841,6 +844,7 @@ interface ItineraryTabProps {
   ) => Promise<void>;
   currentUserRole?: "owner" | "editor" | "viewer";
   currentUserId?: string;
+  ownerName?: string;
 }
 
 export const ItineraryTab = ({
@@ -855,6 +859,7 @@ export const ItineraryTab = ({
   onBatchUpdateOrders,
   currentUserRole,
   currentUserId,
+  ownerName,
 }: ItineraryTabProps) => {
   const [addingForPeriod, setAddingForPeriod] = useState<string | null>(null);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(
@@ -878,6 +883,8 @@ export const ItineraryTab = ({
     },
     [currentUserRole, currentUserId]
   );
+
+  const canAdd = currentUserRole === "owner" || currentUserRole === "editor";
 
   // Flat lookup: activityId → { date, period, activity }
   const activityMap = useMemo(() => {
@@ -976,6 +983,24 @@ export const ItineraryTab = ({
       onDragEnd={handleDragEnd}
     >
       <div className="space-y-4">
+        {/* Viewer read-only banner */}
+        {currentUserRole === "viewer" && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
+            <Eye className="h-4 w-4 shrink-0" />
+            <span>
+              Bạn chỉ có quyền xem chuyến đi này.
+              {ownerName ? (
+                <>
+                  {" "}
+                  Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
+                  sửa.
+                </>
+              ) : (
+                " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+              )}
+            </span>
+          </div>
+        )}
         {/* Export toolbar */}
         {tripMeta && (
           <div className="flex items-center justify-between">
@@ -1051,6 +1076,7 @@ export const ItineraryTab = ({
                     editingActivityId={editingActivityId}
                     setEditingActivityId={setEditingActivityId}
                     canEditActivity={canEditActivity}
+                    canAdd={canAdd}
                   />
                 ))}
               </div>

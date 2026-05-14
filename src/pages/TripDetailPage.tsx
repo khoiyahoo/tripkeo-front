@@ -124,6 +124,9 @@ const TripDetailPage = () => {
   const days = generateDaysList(trip.startDate, trip.endDate);
   const currentUserRole = user ? trip.members[user.uid]?.role : undefined;
   const isOwner = currentUserRole === "owner";
+  const ownerName =
+    Object.values(trip.members).find((m) => m.role === "owner")?.displayName ??
+    "";
 
   // Build tripMeta for PDF export
   const tripMeta = {
@@ -310,6 +313,7 @@ const TripDetailPage = () => {
                 onBatchUpdateOrders={handleBatchUpdateOrders}
                 currentUserRole={currentUserRole}
                 currentUserId={user?.uid}
+                ownerName={ownerName}
               />
             </TabsContent>
             <TabsContent value="expenses">
@@ -322,6 +326,7 @@ const TripDetailPage = () => {
                 budget={trip.budget}
                 totalSpent={totalSpent}
                 isLoading={isExpensesLoading}
+                currentUserRole={currentUserRole}
                 onAddExpense={handleAddExpense}
                 onDeleteExpense={handleDeleteExpense}
               />

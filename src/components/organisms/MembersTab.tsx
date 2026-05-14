@@ -2,6 +2,7 @@ import {
   Check,
   Copy,
   Crown,
+  Eye,
   Link2,
   Loader2,
   LogOut,
@@ -74,6 +75,7 @@ export const MembersTab = ({
   onInviteMember,
   onRemoveMember,
   onLeaveTrip,
+  onUpdateRole,
   onCheckDuplicate,
   onCreateShareLink,
 }: MembersTabProps) => {
@@ -95,6 +97,21 @@ export const MembersTab = ({
   const isOwner = currentUserRole === "owner";
   const memberEntries = Object.entries(members);
   const canLeave = currentUserRole !== undefined && currentUserRole !== "owner";
+  const ownerName =
+    Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
+
+  const handleUpdateRole = async (uid: string, newRole: TripRole) => {
+    try {
+      await onUpdateRole(uid, newRole);
+      toast.success(
+        `Đã cập nhật quyền thành ${
+          newRole === "editor" ? "Chỉnh sửa" : "Chỉ xem"
+        }`
+      );
+    } catch {
+      toast.error("Không thể cập nhật quyền. Vui lòng thử lại.");
+    }
+  };
 
   const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -262,6 +279,25 @@ export const MembersTab = ({
         </DialogContent>
       </Dialog>
 
+      {/* Viewer read-only banner */}
+      {currentUserRole === "viewer" && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
+          <Eye className="h-4 w-4 shrink-0" />
+          <span>
+            Bạn chỉ có quyền xem chuyến đi này.
+            {ownerName ? (
+              <>
+                {" "}
+                Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
+                sửa.
+              </>
+            ) : (
+              " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+            )}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-on-surface">
           Thành viên ({memberEntries.length})
@@ -405,9 +441,34 @@ export const MembersTab = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge className={ROLE_COLORS[member.role]}>
-                  {ROLE_LABELS[member.role]}
-                </Badge>
+                {isOwner && member.role !== "owner" ? (
+                  <Select
+                    value={member.role}
+                    onValueChange={(v) =>
+                      handleUpdateRole(uid, v as "editor" | "viewer")
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-2 py-0 font-medium text-xs shadow-none focus:ring-0">
+                      <span
+                        className={`rounded-full px-2 py-0.5 ${
+                          ROLE_COLORS[member.role as TripRole]
+                        }`}
+                      >
+                        <SelectValue />
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="editor">
+                        Biên tập — thêm/sửa nội dung
+                      </SelectItem>
+                      <SelectItem value="viewer">Xem — chỉ đọc</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge className={ROLE_COLORS[member.role]}>
+                    {ROLE_LABELS[member.role]}
+                  </Badge>
+                )}
                 {isOwner && member.role !== "owner" && (
                   <Button
                     variant="ghost"

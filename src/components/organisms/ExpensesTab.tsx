@@ -1,4 +1,12 @@
-import { ArrowRight, Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
+import {
+  ArrowRight,
+  Eye,
+  Loader2,
+  Plus,
+  Receipt,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -42,6 +50,7 @@ interface ExpensesTabProps {
   budget: number;
   totalSpent: number;
   isLoading: boolean;
+  currentUserRole?: "owner" | "editor" | "viewer";
   onAddExpense: (input: CreateExpenseInput) => Promise<string>;
   onDeleteExpense: (expenseId: string) => Promise<void>;
 }
@@ -237,10 +246,15 @@ export const ExpensesTab = ({
   budget,
   totalSpent,
   isLoading,
+  currentUserRole,
   onAddExpense,
   onDeleteExpense,
 }: ExpensesTabProps) => {
   const [isAdding, setIsAdding] = useState(false);
+
+  const canEdit = currentUserRole !== "viewer";
+  const ownerName =
+    Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
 
   const budgetPct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0;
   const isOverBudget = totalSpent > budget;
@@ -257,6 +271,25 @@ export const ExpensesTab = ({
 
   return (
     <div className="space-y-6">
+      {/* Viewer read-only banner */}
+      {currentUserRole === "viewer" && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
+          <Eye className="h-4 w-4 shrink-0" />
+          <span>
+            Bạn chỉ có quyền xem chuyến đi này.
+            {ownerName ? (
+              <>
+                {" "}
+                Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
+                sửa.
+              </>
+            ) : (
+              " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Budget summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="border-none shadow-sm">
@@ -352,7 +385,7 @@ export const ExpensesTab = ({
       <Card className="border-none shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Danh sách chi phí</CardTitle>
-          {!isAdding && (
+          {canEdit && !isAdding && (
             <Button size="sm" onClick={() => setIsAdding(true)}>
               <Plus className="mr-1 h-3.5 w-3.5" />
               Thêm chi phí
@@ -360,7 +393,7 @@ export const ExpensesTab = ({
           )}
         </CardHeader>
         <CardContent>
-          {isAdding && (
+          {isAdding && canEdit && (
             <div className="mb-4">
               <AddExpenseForm
                 members={members}
@@ -398,14 +431,16 @@ export const ExpensesTab = ({
                     <span className="font-semibold text-on-surface text-sm">
                       {formatCurrency(expense.amount)}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-                      onClick={() => onDeleteExpense(expense.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-error-500" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={() => onDeleteExpense(expense.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-error-500" />
+                      </Button>
+                    )}
                   </div>
                 );
               })}
