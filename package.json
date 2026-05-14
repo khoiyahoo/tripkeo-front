@@ -51,6 +51,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.0",
+    "tripkeo-front": "link:",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },

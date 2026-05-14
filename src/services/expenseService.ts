@@ -44,9 +44,9 @@ export const createExpense = async (
     category: input.category,
     date: Timestamp.fromDate(new Date(input.date)),
     paidBy: input.paidBy,
-    paidByName: input.paidByName,
     splitType: input.splitType,
     splitAmong: input.splitAmong,
+    note: input.note ?? "",
     createdBy: userId,
     createdAt: serverTimestamp(),
   };
@@ -66,9 +66,9 @@ export const updateExpense = async (
   if (data.amount !== undefined) updateData.amount = data.amount;
   if (data.category !== undefined) updateData.category = data.category;
   if (data.paidBy !== undefined) updateData.paidBy = data.paidBy;
-  if (data.paidByName !== undefined) updateData.paidByName = data.paidByName;
   if (data.splitType !== undefined) updateData.splitType = data.splitType;
   if (data.splitAmong !== undefined) updateData.splitAmong = data.splitAmong;
+  if (data.note !== undefined) updateData.note = data.note;
   if (data.date !== undefined)
     updateData.date = Timestamp.fromDate(new Date(data.date));
 
@@ -117,9 +117,18 @@ export const calculateBalances = (
 
   // Calculate from expenses
   for (const expense of expenses) {
-    // Add to payer's totalPaid
-    if (balanceMap[expense.paidBy]) {
-      balanceMap[expense.paidBy].totalPaid += expense.amount;
+    const paidBy =
+      typeof expense.paidBy === "string"
+        ? { type: "member" as const, userId: expense.paidBy, displayName: "" }
+        : expense.paidBy;
+
+    // group_fund expenses: no individual balance change
+    if (paidBy.type === "group_fund") continue;
+
+    // member-paid: add to payer's totalPaid
+    const payerId = paidBy.userId;
+    if (payerId && balanceMap[payerId]) {
+      balanceMap[payerId].totalPaid += expense.amount;
     }
 
     // Add to each person's totalOwed

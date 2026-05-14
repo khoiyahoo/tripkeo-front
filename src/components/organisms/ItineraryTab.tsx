@@ -70,7 +70,11 @@ import {
   parseCurrencyInput,
 } from "@/utils/format";
 
-import type { ActivityWithId, CreateActivityInput } from "@/types/firestore";
+import type {
+  ActivityWithId,
+  CreateActivityInput,
+  TripRole,
+} from "@/types/firestore";
 import type { ActivityType, TimePeriod } from "@/types/trip";
 
 // ─── Period UI Config (Lucide icons) ─────────────────────────
@@ -842,7 +846,7 @@ interface ItineraryTabProps {
   onBatchUpdateOrders: (
     updates: { id: string; order: number; startTime?: string; date?: string }[]
   ) => Promise<void>;
-  currentUserRole?: "owner" | "editor" | "viewer";
+  currentUserRole?: TripRole;
   currentUserId?: string;
   ownerName?: string;
 }
@@ -879,12 +883,16 @@ export const ItineraryTab = ({
     (activity: ActivityWithId): boolean => {
       if (!currentUserRole || currentUserRole === "viewer") return false;
       if (currentUserRole === "owner") return true;
+      // editor and treasurer can edit their own activities
       return activity.createdBy === currentUserId;
     },
     [currentUserRole, currentUserId]
   );
 
-  const canAdd = currentUserRole === "owner" || currentUserRole === "editor";
+  const canAdd =
+    currentUserRole === "owner" ||
+    currentUserRole === "editor" ||
+    currentUserRole === "treasurer";
 
   // Flat lookup: activityId → { date, period, activity }
   const activityMap = useMemo(() => {

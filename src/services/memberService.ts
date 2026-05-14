@@ -77,7 +77,7 @@ export const acceptInvitation = async (
   userDisplayName: string,
   userPhotoURL: string,
   userEmail: string,
-  role: "editor" | "viewer"
+  role: "treasurer" | "editor" | "viewer"
 ): Promise<void> => {
   const memberInfo: TripMemberInfo = {
     role,
@@ -227,7 +227,7 @@ export const checkDuplicateInvitation = async (
 /** Create a share-link invitation (no email sent) and return the invite code */
 export const createShareLinkInvitation = async (
   tripId: string,
-  role: "editor" | "viewer",
+  role: "treasurer" | "editor" | "viewer",
   invitedByUid: string,
   invitedByName: string,
   tripName: string,

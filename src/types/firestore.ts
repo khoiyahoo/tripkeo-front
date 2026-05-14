@@ -13,7 +13,7 @@ export interface UserProfileDoc {
 }
 
 // ─── Trip ────────────────────────────────────────────────────
-export type TripRole = "owner" | "editor" | "viewer";
+export type TripRole = "owner" | "treasurer" | "editor" | "viewer";
 
 export interface TripMemberInfo {
   role: TripRole;
@@ -57,15 +57,21 @@ export interface ActivityDoc {
 }
 
 // ─── Expense (subcollection: trips/{tripId}/expenses) ────────
+export interface ExpensePaidBy {
+  type: "group_fund" | "member";
+  userId: string | null;
+  displayName: string;
+}
+
 export interface ExpenseDoc {
   description: string;
   amount: number;
   category: ExpenseCategory;
   date: Timestamp;
-  paidBy: string; // uid
-  paidByName: string;
+  paidBy: ExpensePaidBy;
   splitType: "equal" | "custom";
   splitAmong: Record<string, number>; // uid → amount owed
+  note?: string;
   receiptUrl?: string;
   createdBy: string;
   createdAt: Timestamp;
@@ -74,7 +80,7 @@ export interface ExpenseDoc {
 // ─── Invitation (subcollection: trips/{tripId}/invitations) ──
 export interface InvitationDoc {
   email: string;
-  role: "editor" | "viewer";
+  role: "treasurer" | "editor" | "viewer";
   inviteCode: string;
   status: "pending" | "accepted" | "declined";
   invitedBy: string;
@@ -111,7 +117,7 @@ export interface InvitationWithId extends InvitationDoc {
 // ─── Form input types ────────────────────────────────────────
 export interface InvitedMember {
   email: string;
-  role: "editor" | "viewer";
+  role: "treasurer" | "editor" | "viewer";
 }
 
 export interface CreateTripInput {
@@ -144,15 +150,15 @@ export interface CreateExpenseInput {
   amount: number;
   category: ExpenseCategory;
   date: string; // YYYY-MM-DD
-  paidBy: string;
-  paidByName: string;
+  paidBy: ExpensePaidBy;
   splitType: "equal" | "custom";
   splitAmong: Record<string, number>;
+  note?: string;
 }
 
 export interface InviteMemberInput {
   email: string;
-  role: "editor" | "viewer";
+  role: "treasurer" | "editor" | "viewer";
 }
 
 // ─── Balance calculation types ───────────────────────────────

@@ -44,12 +44,14 @@ import type {
 
 const ROLE_LABELS: Record<TripRole, string> = {
   owner: "Chủ sở hữu",
+  treasurer: "Thủ quỹ",
   editor: "Biên tập",
   viewer: "Xem",
 };
 
 const ROLE_COLORS: Record<TripRole, string> = {
   owner: "bg-tertiary-50 text-tertiary-700",
+  treasurer: "bg-emerald-50 text-emerald-700",
   editor: "bg-primary-50 text-primary-700",
   viewer: "bg-surface-dim text-on-surface-variant",
 };
@@ -64,7 +66,9 @@ interface MembersTabProps {
   onLeaveTrip: (userId: string) => Promise<void>;
   onUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   onCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
-  onCreateShareLink: (role: "editor" | "viewer") => Promise<string>;
+  onCreateShareLink: (
+    role: "treasurer" | "editor" | "viewer"
+  ) => Promise<string>;
 }
 
 export const MembersTab = ({
@@ -81,7 +85,9 @@ export const MembersTab = ({
 }: MembersTabProps) => {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
+  const [inviteRole, setInviteRole] = useState<
+    "treasurer" | "editor" | "viewer"
+  >("editor");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
@@ -103,11 +109,7 @@ export const MembersTab = ({
   const handleUpdateRole = async (uid: string, newRole: TripRole) => {
     try {
       await onUpdateRole(uid, newRole);
-      toast.success(
-        `Đã cập nhật quyền thành ${
-          newRole === "editor" ? "Chỉnh sửa" : "Chỉ xem"
-        }`
-      );
+      toast.success(`Đã cập nhật quyền thành ${ROLE_LABELS[newRole]}`);
     } catch {
       toast.error("Không thể cập nhật quyền. Vui lòng thử lại.");
     }
@@ -345,7 +347,7 @@ export const MembersTab = ({
               <Select
                 value={inviteRole}
                 onValueChange={(v) => {
-                  setInviteRole(v as "editor" | "viewer");
+                  setInviteRole(v as "treasurer" | "editor" | "viewer");
                   setShareLink(null);
                 }}
               >
@@ -353,8 +355,11 @@ export const MembersTab = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="treasurer">
+                    Thủ quỹ (quản lý chi phí)
+                  </SelectItem>
                   <SelectItem value="editor">
-                    Biên tập (thêm/sửa nội dung)
+                    Biên tập (thêm/sửa lịch trình)
                   </SelectItem>
                   <SelectItem value="viewer">Xem (chỉ đọc)</SelectItem>
                 </SelectContent>
@@ -444,9 +449,7 @@ export const MembersTab = ({
                 {isOwner && member.role !== "owner" ? (
                   <Select
                     value={member.role}
-                    onValueChange={(v) =>
-                      handleUpdateRole(uid, v as "editor" | "viewer")
-                    }
+                    onValueChange={(v) => handleUpdateRole(uid, v as TripRole)}
                   >
                     <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-2 py-0 font-medium text-xs shadow-none focus:ring-0">
                       <span
@@ -458,8 +461,11 @@ export const MembersTab = ({
                       </span>
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="treasurer">
+                        Thủ quỹ — quản lý chi phí
+                      </SelectItem>
                       <SelectItem value="editor">
-                        Biên tập — thêm/sửa nội dung
+                        Biên tập — thêm/sửa lịch trình
                       </SelectItem>
                       <SelectItem value="viewer">Xem — chỉ đọc</SelectItem>
                     </SelectContent>

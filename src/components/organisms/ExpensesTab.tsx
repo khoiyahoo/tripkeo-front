@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { ExpensesPdfExport } from "@/components/organisms/ExpensesPdfExport";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,6 @@ import {
 } from "@/components/ui/select";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/stores/authStore";
 import {
   formatCurrency,
   formatCurrencyInput,
@@ -38,11 +38,13 @@ import type {
   ExpenseWithId,
   MemberBalance,
   TripMemberInfo,
+  TripRole,
 } from "@/types/firestore";
 import type { ExpenseCategory } from "@/types/trip";
 
 interface ExpensesTabProps {
   tripId: string;
+  tripName: string;
   expenses: ExpenseWithId[];
   debts: DebtSettlement[];
   balances: MemberBalance[];
@@ -50,7 +52,7 @@ interface ExpensesTabProps {
   budget: number;
   totalSpent: number;
   isLoading: boolean;
-  currentUserRole?: "owner" | "editor" | "viewer";
+  currentUserRole?: TripRole;
   onAddExpense: (input: CreateExpenseInput) => Promise<string>;
   onDeleteExpense: (expenseId: string) => Promise<void>;
 }
@@ -121,15 +123,15 @@ const AddExpenseForm = ({
   onSubmit: (input: CreateExpenseInput) => Promise<unknown>;
   onCancel: () => void;
 }) => {
-  const user = useAuthStore((s) => s.user);
   const [description, setDescription] = useState("");
-  const [amountRaw, setAmountRaw] = useState(""); // raw digits only
+  const [amountRaw, setAmountRaw] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("food");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paidByValue, setPaidByValue] = useState("group_fund");
+  const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const memberIds = Object.keys(members);
-  const paidBy = user?.uid ?? memberIds[0] ?? "";
 
   const handleSubmit = async () => {
     if (!description.trim() || !amountRaw) return;
@@ -142,15 +144,28 @@ const AddExpenseForm = ({
       splitAmong[uid] = splitAmount;
     }
 
+    const paidBy =
+      paidByValue === "group_fund"
+        ? {
+            type: "group_fund" as const,
+            userId: null,
+            displayName: "Quỹ chung",
+          }
+        : {
+            type: "member" as const,
+            userId: paidByValue,
+            displayName: members[paidByValue]?.displayName ?? "",
+          };
+
     await onSubmit({
       description: description.trim(),
       amount: amountNum,
       category,
       date,
       paidBy,
-      paidByName: members[paidBy]?.displayName ?? "",
       splitType: "equal",
       splitAmong,
+      note: note.trim() || undefined,
     });
     setIsSubmitting(false);
     onCancel();
@@ -220,6 +235,31 @@ const AddExpenseForm = ({
             </SelectContent>
           </Select>
         </div>
+        <div>
+          <Label>Người trả</Label>
+          <Select value={paidByValue} onValueChange={setPaidByValue}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="group_fund">💰 Quỹ chung</SelectItem>
+              {memberIds.map((uid) => (
+                <SelectItem key={uid} value={uid}>
+                  {members[uid]?.displayName ?? uid}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Ghi chú</Label>
+          <Input
+            placeholder="Tùy chọn"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            className="mt-1"
+          />
+        </div>
         <p className="text-on-surface-variant text-xs">
           Chia đều cho {memberIds.length} thành viên
         </p>
@@ -242,24 +282,28 @@ const AddExpenseForm = ({
 export const ExpensesTab = ({
   expenses,
   debts,
+  balances,
   members,
   budget,
   totalSpent,
   isLoading,
   currentUserRole,
+  tripName,
   onAddExpense,
   onDeleteExpense,
 }: ExpensesTabProps) => {
   const [isAdding, setIsAdding] = useState(false);
 
-  const canEdit = currentUserRole !== "viewer";
+  const canEdit =
+    currentUserRole === "owner" || currentUserRole === "treasurer";
   const ownerName =
     Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
+  const memberCount = Object.keys(members).length;
+  const perPerson = memberCount > 0 ? budget / memberCount : 0;
+  const remaining = budget - totalSpent;
 
   const budgetPct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0;
   const isOverBudget = totalSpent > budget;
-  const memberCount = Object.keys(members).length;
-  const avgPerPerson = memberCount > 0 ? totalSpent / memberCount : 0;
 
   if (isLoading) {
     return (
@@ -271,20 +315,19 @@ export const ExpensesTab = ({
 
   return (
     <div className="space-y-6">
-      {/* Viewer read-only banner */}
-      {currentUserRole === "viewer" && (
+      {/* Read-only banner for non-treasurer/non-owner */}
+      {!canEdit && currentUserRole && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
           <Eye className="h-4 w-4 shrink-0" />
           <span>
-            Bạn chỉ có quyền xem chuyến đi này.
+            Chỉ thủ quỹ mới có quyền quản lý chi phí.
             {ownerName ? (
               <>
                 {" "}
-                Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
-                sửa.
+                Liên hệ <strong>{ownerName}</strong> nếu cần thay đổi.
               </>
             ) : (
-              " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+              " Liên hệ chủ chuyến đi nếu cần thay đổi."
             )}
           </span>
         </div>
@@ -294,17 +337,22 @@ export const ExpensesTab = ({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="border-none shadow-sm">
           <CardContent className="p-4 text-center">
-            <p className="text-on-surface-variant text-sm">Tổng chi phí</p>
+            <p className="text-on-surface-variant text-sm">Ngân sách</p>
             <p className="font-bold text-2xl text-on-surface">
-              {formatCurrency(totalSpent)}
+              {formatCurrency(budget)}
             </p>
+            {budget > 0 && memberCount > 0 && (
+              <p className="mt-1 text-on-surface-variant text-xs">
+                {formatCurrency(perPerson)} / người
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm">
           <CardContent className="p-4 text-center">
-            <p className="text-on-surface-variant text-sm">Ngân sách</p>
+            <p className="text-on-surface-variant text-sm">Đã chi</p>
             <p className="font-bold text-2xl text-on-surface">
-              {formatCurrency(budget)}
+              {formatCurrency(totalSpent)}
             </p>
             {budget > 0 && (
               <Progress
@@ -319,11 +367,14 @@ export const ExpensesTab = ({
         </Card>
         <Card className="border-none shadow-sm">
           <CardContent className="p-4 text-center">
-            <p className="text-on-surface-variant text-sm">
-              Trung bình / người
-            </p>
-            <p className="font-bold text-2xl text-on-surface">
-              {formatCurrency(avgPerPerson)}
+            <p className="text-on-surface-variant text-sm">Còn lại</p>
+            <p
+              className={cn(
+                "font-bold text-2xl",
+                remaining < 0 ? "text-error-600" : "text-on-surface"
+              )}
+            >
+              {formatCurrency(remaining)}
             </p>
           </CardContent>
         </Card>
@@ -341,11 +392,62 @@ export const ExpensesTab = ({
         </Card>
       )}
 
-      {/* Debt summary */}
+      {/* Reimbursement balances */}
+      {balances.some((b) => b.net !== 0) && (
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              Hoàn tiền (Chi phí phát sinh)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {balances
+                .filter((b) => b.net !== 0)
+                .sort((a, b) => b.net - a.net)
+                .map((b) => (
+                  <div
+                    key={b.uid}
+                    className="flex items-center justify-between rounded-xl bg-surface-dim/50 p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        <AvatarFallback
+                          className={cn(
+                            "text-xs",
+                            b.net > 0
+                              ? "bg-success-50 text-success-700"
+                              : "bg-error-50 text-error-700"
+                          )}
+                        >
+                          {b.displayName[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium text-on-surface text-sm">
+                        {b.displayName}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "font-bold text-sm",
+                        b.net > 0 ? "text-success-600" : "text-error-600"
+                      )}
+                    >
+                      {b.net > 0 ? "+" : ""}
+                      {formatCurrency(Math.round(b.net))}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Debt settlements */}
       {debts.length > 0 && (
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Ai nợ ai?</CardTitle>
+            <CardTitle className="text-base">Ai trả ai?</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -406,10 +508,22 @@ export const ExpensesTab = ({
             <div className="space-y-2">
               {expenses.map((expense) => {
                 const config = EXPENSE_CATEGORY_CONFIG[expense.category];
+                const paidBy =
+                  typeof expense.paidBy === "string"
+                    ? {
+                        type: "member" as const,
+                        userId: expense.paidBy,
+                        displayName: "",
+                      }
+                    : expense.paidBy;
+                const isOutOfPocket = paidBy.type === "member";
                 return (
                   <div
                     key={expense.id}
-                    className="group flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50"
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50",
+                      isOutOfPocket && "border-amber-500 border-l-2"
+                    )}
                   >
                     <div
                       className={cn(
@@ -424,8 +538,14 @@ export const ExpensesTab = ({
                         {expense.description}
                       </p>
                       <p className="text-on-surface-variant text-xs">
-                        {expense.paidByName} ·{" "}
-                        {timestampToDateStr(expense.date)}
+                        {timestampToDateStr(expense.date)} ·{" "}
+                        {isOutOfPocket ? (
+                          <span className="text-amber-600">
+                            {paidBy.displayName || "Thành viên"} trả (phát sinh)
+                          </span>
+                        ) : (
+                          "Quỹ chung"
+                        )}
                       </p>
                     </div>
                     <span className="font-semibold text-on-surface text-sm">
@@ -452,6 +572,21 @@ export const ExpensesTab = ({
           )}
         </CardContent>
       </Card>
+
+      {/* PDF Export */}
+      {expenses.length > 0 && (
+        <ExpensesPdfExport
+          meta={{
+            title: tripName,
+            memberCount: memberCount,
+          }}
+          expenses={expenses}
+          budget={budget}
+          totalSpent={totalSpent}
+          balances={balances}
+          debts={debts}
+        />
+      )}
     </div>
   );
 };
