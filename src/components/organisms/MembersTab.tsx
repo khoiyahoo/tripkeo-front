@@ -86,6 +86,11 @@ export const MembersTab = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [kickTarget, setKickTarget] = useState<{
+    uid: string;
+    displayName: string;
+  } | null>(null);
+  const [isKicking, setIsKicking] = useState(false);
 
   const isOwner = currentUserRole === "owner";
   const memberEntries = Object.entries(members);
@@ -166,8 +171,63 @@ export const MembersTab = ({
     }
   };
 
+  const handleKickMember = async () => {
+    if (!kickTarget) return;
+    setIsKicking(true);
+    try {
+      await onRemoveMember(kickTarget.uid);
+      toast.success(`Đã xóa ${kickTarget.displayName} khỏi chuyến đi`);
+    } catch {
+      toast.error("Không thể xóa thành viên. Vui lòng thử lại.");
+    } finally {
+      setIsKicking(false);
+      setKickTarget(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Kick member confirmation dialog */}
+      <Dialog
+        open={!!kickTarget}
+        onOpenChange={(open) => !open && setKickTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xóa thành viên</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc muốn xóa{" "}
+              <span className="font-semibold text-on-surface">
+                {kickTarget?.displayName}
+              </span>{" "}
+              khỏi chuyến đi &quot;{tripName}&quot;? Họ sẽ mất quyền truy cập
+              lịch trình và chi phí.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setKickTarget(null)}
+              disabled={isKicking}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleKickMember}
+              disabled={isKicking}
+            >
+              {isKicking ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <X className="mr-2 h-4 w-4" />
+              )}
+              Xóa khỏi chuyến đi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Leave trip confirmation dialog */}
       <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
         <DialogContent>
@@ -353,7 +413,12 @@ export const MembersTab = ({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-error-500"
-                    onClick={() => onRemoveMember(uid)}
+                    onClick={() =>
+                      setKickTarget({
+                        uid,
+                        displayName: member.displayName,
+                      })
+                    }
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
