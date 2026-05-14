@@ -7,6 +7,7 @@ import {
   createShareLinkInvitation,
   declineInvitation,
   inviteMember,
+  leaveTrip,
   removeMember,
   subscribeToPendingInvitations,
   updateMemberRole,
@@ -96,6 +97,7 @@ export const useInvitations = (): UseInvitationsResult => {
 interface UseTripMembersResult {
   handleInviteMember: (input: InviteMemberInput) => Promise<string>;
   handleRemoveMember: (userId: string) => Promise<void>;
+  handleLeaveTrip: (userId: string) => Promise<void>;
   handleUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   handleCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   handleCreateShareLink: (role: "editor" | "viewer") => Promise<string>;
@@ -141,6 +143,13 @@ export const useTripMembers = (
     [tripId]
   );
 
+  const handleLeaveTrip = useCallback(
+    (userId: string): Promise<void> => {
+      return leaveTrip(tripId, userId);
+    },
+    [tripId]
+  );
+
   const handleUpdateRole = useCallback(
     (userId: string, newRole: TripRole): Promise<void> => {
       return updateMemberRole(tripId, userId, newRole);
@@ -173,6 +182,7 @@ export const useTripMembers = (
   return {
     handleInviteMember,
     handleRemoveMember,
+    handleLeaveTrip,
     handleUpdateRole,
     handleCheckDuplicate,
     handleCreateShareLink,

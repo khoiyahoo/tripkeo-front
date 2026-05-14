@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { consumePendingCallback, useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   acceptInvitation,
   declineInvitation,
@@ -20,11 +19,14 @@ const InvitePage = () => {
   };
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const { requireAuth } = useRequireAuth();
+  const openLoginDialog = useAuthStore((s) => s.openLoginDialog);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "accept" | "decline" | null
+  >(null);
   const [invitation, setInvitation] = useState<
     (InvitationWithId & { tripId: string }) | null
   >(null);
@@ -100,12 +102,25 @@ const InvitePage = () => {
     }
   };
 
-  // After login, auto-accept
-  useEffect(() => {
-    if (user && invitation) {
-      consumePendingCallback();
+  const handleAction = (action: "accept" | "decline") => {
+    if (!user) {
+      setPendingAction(action);
+      openLoginDialog();
+      return;
     }
-  }, [user, invitation]);
+    if (action === "accept") handleAccept();
+    else handleDecline();
+  };
+
+  // After login, auto-execute the stored pending action with the fresh user context
+  useEffect(() => {
+    if (!user || !invitation || !pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === "accept") handleAccept();
+    else handleDecline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, invitation, pendingAction]);
 
   if (isLoading) {
     return (
@@ -164,7 +179,7 @@ const InvitePage = () => {
             variant="outline"
             className="flex-1"
             disabled={isDeclining || isAccepting}
-            onClick={handleDecline}
+            onClick={() => handleAction("decline")}
           >
             {isDeclining ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -175,7 +190,7 @@ const InvitePage = () => {
           <Button
             className="flex-1"
             disabled={isAccepting || isDeclining}
-            onClick={requireAuth(handleAccept)}
+            onClick={() => handleAction("accept")}
           >
             {isAccepting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

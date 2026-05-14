@@ -1,4 +1,13 @@
-import { Check, Copy, Crown, Link2, Loader2, UserPlus, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Crown,
+  Link2,
+  Loader2,
+  LogOut,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -6,6 +15,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,8 +56,11 @@ const ROLE_COLORS: Record<TripRole, string> = {
 interface MembersTabProps {
   members: Record<string, TripMemberInfo>;
   currentUserRole: TripRole | undefined;
+  currentUserId: string | undefined;
+  tripName: string;
   onInviteMember: (input: InviteMemberInput) => Promise<string>;
   onRemoveMember: (userId: string) => Promise<void>;
+  onLeaveTrip: (userId: string) => Promise<void>;
   onUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   onCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   onCreateShareLink: (role: "editor" | "viewer") => Promise<string>;
@@ -49,8 +69,11 @@ interface MembersTabProps {
 export const MembersTab = ({
   members,
   currentUserRole,
+  currentUserId,
+  tripName,
   onInviteMember,
   onRemoveMember,
+  onLeaveTrip,
   onCheckDuplicate,
   onCreateShareLink,
 }: MembersTabProps) => {
@@ -61,9 +84,12 @@ export const MembersTab = ({
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const isOwner = currentUserRole === "owner";
   const memberEntries = Object.entries(members);
+  const canLeave = currentUserRole !== undefined && currentUserRole !== "owner";
 
   const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -126,8 +152,56 @@ export const MembersTab = ({
     }
   };
 
+  const handleLeaveTrip = async () => {
+    if (!currentUserId) return;
+    setIsLeaving(true);
+    try {
+      await onLeaveTrip(currentUserId);
+      toast.success("Đã rời khỏi chuyến đi");
+    } catch {
+      toast.error("Không thể rời chuyến đi. Vui lòng thử lại.");
+    } finally {
+      setIsLeaving(false);
+      setIsLeaveDialogOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Leave trip confirmation dialog */}
+      <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rời chuyến đi</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc muốn rời khỏi chuyến đi &quot;{tripName}&quot;? Bạn sẽ
+              không thể xem lịch trình và chi phí nữa.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsLeaveDialogOpen(false)}
+              disabled={isLeaving}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleLeaveTrip}
+              disabled={isLeaving}
+            >
+              {isLeaving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
+              Rời chuyến đi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-on-surface">
           Thành viên ({memberEntries.length})
@@ -282,6 +356,17 @@ export const MembersTab = ({
                     onClick={() => onRemoveMember(uid)}
                   >
                     <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {canLeave && uid === currentUserId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-error-500 text-xs hover:bg-error-50 hover:text-error-600"
+                    onClick={() => setIsLeaveDialogOpen(true)}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Rời
                   </Button>
                 )}
               </div>

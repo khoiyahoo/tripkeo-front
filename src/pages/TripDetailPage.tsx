@@ -80,6 +80,7 @@ const TripDetailPage = () => {
   const {
     handleInviteMember,
     handleRemoveMember,
+    handleLeaveTrip,
     handleUpdateRole,
     handleCheckDuplicate,
     handleCreateShareLink,
@@ -329,8 +330,14 @@ const TripDetailPage = () => {
               <MembersTab
                 members={trip.members}
                 currentUserRole={currentUserRole}
+                currentUserId={user?.uid}
+                tripName={trip.name}
                 onInviteMember={handleInviteMember}
                 onRemoveMember={handleRemoveMember}
+                onLeaveTrip={async (userId) => {
+                  await handleLeaveTrip(userId);
+                  navigate({ to: "/" });
+                }}
                 onUpdateRole={handleUpdateRole}
                 onCheckDuplicate={handleCheckDuplicate}
                 onCreateShareLink={handleCreateShareLink}

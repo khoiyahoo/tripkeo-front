@@ -113,6 +113,18 @@ export const removeMember = async (
   });
 };
 
+export const leaveTrip = async (
+  tripId: string,
+  userId: string
+): Promise<void> => {
+  const tripRef = doc(db, "trips", tripId);
+  await updateDoc(tripRef, {
+    [`members.${userId}`]: deleteField(),
+    memberIds: arrayRemove(userId),
+    updatedAt: serverTimestamp(),
+  });
+};
+
 export const updateMemberRole = async (
   tripId: string,
   userId: string,
