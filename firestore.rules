@@ -29,16 +29,26 @@ service cloud.firestore {
 
       // Owner can update anything; editors can update limited fields
       allow update: if request.auth != null
-        && request.auth.uid in resource.data.memberIds
         && (
-          // Owner: full access
-          resource.data.members[request.auth.uid].role == 'owner'
-          ||
-          // Editor: can update specific fields only
+          // Existing member with owner/editor role
           (
-            resource.data.members[request.auth.uid].role == 'editor'
+            request.auth.uid in resource.data.memberIds
+            && (
+              resource.data.members[request.auth.uid].role == 'owner'
+              ||
+              (
+                resource.data.members[request.auth.uid].role == 'editor'
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['members', 'memberIds', 'updatedAt'])
+              )
+            )
+          )
+          // OR: user is accepting an invitation (adding themselves as a new member)
+          || (
+            !(request.auth.uid in resource.data.memberIds)
             && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['members', 'memberIds', 'updatedAt'])
+            && request.auth.uid in request.resource.data.memberIds
           )
         );
 
@@ -116,10 +126,12 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner';
 
         // Update: owner or the invited user (to accept/decline)
+        // Also allow authenticated users accepting share-link invitations (email is empty)
         allow update: if request.auth != null
           && (
             get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
             || request.auth.token.email == resource.data.email
+            || resource.data.email == ''
           );
 
         allow delete: if request.auth != null
