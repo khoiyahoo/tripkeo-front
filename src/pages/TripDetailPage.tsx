@@ -77,8 +77,13 @@ const TripDetailPage = () => {
     handleAddExpense,
     handleDeleteExpense,
   } = useExpenses(tripId, trip?.members ?? {});
-  const { handleInviteMember, handleRemoveMember, handleUpdateRole } =
-    useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
+  const {
+    handleInviteMember,
+    handleRemoveMember,
+    handleUpdateRole,
+    handleCheckDuplicate,
+    handleCreateShareLink,
+  } = useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
 
   if (isLoading) {
     return (
@@ -327,6 +332,8 @@ const TripDetailPage = () => {
                 onInviteMember={handleInviteMember}
                 onRemoveMember={handleRemoveMember}
                 onUpdateRole={handleUpdateRole}
+                onCheckDuplicate={handleCheckDuplicate}
+                onCreateShareLink={handleCreateShareLink}
               />
             </TabsContent>
             <TabsContent value="map">

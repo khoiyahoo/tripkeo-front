@@ -6,6 +6,7 @@ import {
   collectionGroup,
   deleteField,
   doc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -46,6 +47,10 @@ export const inviteMember = async (
   tripName: string,
   destination: string
 ): Promise<string> => {
+  const expiresAt = Timestamp.fromDate(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  );
+
   const invitationData: Omit<InvitationDoc, "createdAt"> & {
     createdAt: ReturnType<typeof serverTimestamp>;
   } = {
@@ -57,11 +62,12 @@ export const inviteMember = async (
     invitedByName,
     tripName,
     destination,
+    expiresAt,
     createdAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(invitationsRef(tripId), invitationData);
-  return docRef.id;
+  await addDoc(invitationsRef(tripId), invitationData);
+  return invitationData.inviteCode;
 };
 
 export const acceptInvitation = async (
@@ -161,4 +167,81 @@ export const subscribeToTripInvitations = (
     },
     onError
   );
+};
+
+/** Find an invitation by its invite code across all trip subcollections */
+export const findInvitationByCode = async (
+  inviteCode: string
+): Promise<(InvitationWithId & { tripId: string }) | null> => {
+  const q = query(
+    collectionGroup(db, "invitations"),
+    where("inviteCode", "==", inviteCode),
+    where("status", "==", "pending")
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+
+  const d = snapshot.docs[0];
+  const tripId = d.ref.parent.parent?.id ?? "";
+  return { id: d.id, tripId, ...(d.data() as InvitationDoc) };
+};
+
+/** Decline an invitation */
+export const declineInvitation = async (
+  tripId: string,
+  invitationId: string
+): Promise<void> => {
+  await updateDoc(doc(db, "trips", tripId, "invitations", invitationId), {
+    status: "declined",
+  });
+};
+
+/** Check if a pending invitation already exists for this email on this trip */
+export const checkDuplicateInvitation = async (
+  tripId: string,
+  email: string
+): Promise<InvitationWithId | null> => {
+  const q = query(
+    invitationsRef(tripId),
+    where("email", "==", email),
+    where("status", "==", "pending")
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  const d = snapshot.docs[0];
+  return { id: d.id, ...(d.data() as InvitationDoc) };
+};
+
+/** Create a share-link invitation (no email sent) and return the invite code */
+export const createShareLinkInvitation = async (
+  tripId: string,
+  role: "editor" | "viewer",
+  invitedByUid: string,
+  invitedByName: string,
+  tripName: string,
+  destination: string
+): Promise<string> => {
+  const expiresAt = Timestamp.fromDate(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  );
+
+  const inviteCode = generateInviteCode();
+
+  const invitationData: Omit<InvitationDoc, "createdAt"> & {
+    createdAt: ReturnType<typeof serverTimestamp>;
+  } = {
+    email: "",
+    role,
+    inviteCode,
+    status: "pending",
+    invitedBy: invitedByUid,
+    invitedByName,
+    tripName,
+    destination,
+    expiresAt,
+    createdAt: serverTimestamp(),
+  };
+
+  await addDoc(invitationsRef(tripId), invitationData);
+  return inviteCode;
 };

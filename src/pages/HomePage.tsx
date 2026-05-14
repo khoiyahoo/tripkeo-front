@@ -208,7 +208,11 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { requireAuth } = useRequireAuth();
   const { trips, isLoading } = useTrips();
-  const { pendingInvitations, handleAcceptInvitation } = useInvitations();
+  const {
+    pendingInvitations,
+    handleAcceptInvitation,
+    handleDeclineInvitation,
+  } = useInvitations();
 
   const tripCards = trips.map(tripToCardData);
 
@@ -253,9 +257,7 @@ export default function HomePage() {
                   onAccept={() =>
                     handleAcceptInvitation(inv.tripId, inv.id, inv.role)
                   }
-                  onDecline={() => {
-                    // TODO: implement decline
-                  }}
+                  onDecline={() => handleDeclineInvitation(inv.tripId, inv.id)}
                 />
               ))}
             </div>

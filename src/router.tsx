@@ -11,6 +11,7 @@ import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
 import CreateTripPage from "@/pages/CreateTripPage";
 import FriendsPage from "@/pages/FriendsPage";
 import HomePage from "@/pages/HomePage";
+import InvitePage from "@/pages/InvitePage";
 import LoginPage from "@/pages/LoginPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -89,6 +90,12 @@ const friendsRoute = createRoute({
   component: FriendsPage,
 });
 
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/invite/$inviteCode",
+  component: InvitePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -97,6 +104,7 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   settingsRoute,
   friendsRoute,
+  inviteRoute,
 ]);
 
 export const router = createRouter({

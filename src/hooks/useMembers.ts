@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { sendInviteEmail } from "@/services/emailService";
 import {
   acceptInvitation,
+  checkDuplicateInvitation,
+  createShareLinkInvitation,
+  declineInvitation,
   inviteMember,
   removeMember,
   subscribeToPendingInvitations,
@@ -22,6 +26,10 @@ interface UseInvitationsResult {
     tripId: string,
     invitationId: string,
     role: "editor" | "viewer"
+  ) => Promise<void>;
+  handleDeclineInvitation: (
+    tripId: string,
+    invitationId: string
   ) => Promise<void>;
 }
 
@@ -70,13 +78,27 @@ export const useInvitations = (): UseInvitationsResult => {
     [user]
   );
 
-  return { pendingInvitations, isLoading, handleAcceptInvitation };
+  const handleDeclineInvitation = useCallback(
+    async (tripId: string, invitationId: string) => {
+      await declineInvitation(tripId, invitationId);
+    },
+    []
+  );
+
+  return {
+    pendingInvitations,
+    isLoading,
+    handleAcceptInvitation,
+    handleDeclineInvitation,
+  };
 };
 
 interface UseTripMembersResult {
   handleInviteMember: (input: InviteMemberInput) => Promise<string>;
   handleRemoveMember: (userId: string) => Promise<void>;
   handleUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
+  handleCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
+  handleCreateShareLink: (role: "editor" | "viewer") => Promise<string>;
 }
 
 export const useTripMembers = (
@@ -87,9 +109,9 @@ export const useTripMembers = (
   const user = useAuthStore((s) => s.user);
 
   const handleInviteMember = useCallback(
-    (input: InviteMemberInput): Promise<string> => {
+    async (input: InviteMemberInput): Promise<string> => {
       if (!user) throw new Error("Not authenticated");
-      return inviteMember(
+      const inviteCode = await inviteMember(
         tripId,
         input,
         user.uid,
@@ -97,6 +119,21 @@ export const useTripMembers = (
         tripName,
         destination
       );
+
+      const appUrl = window.location.origin;
+      try {
+        await sendInviteEmail({
+          toEmail: input.email,
+          fromName: user.displayName ?? "Người dùng TripKeo",
+          tripName,
+          role: input.role,
+          inviteLink: `${appUrl}/invite/${inviteCode}`,
+        });
+      } catch {
+        // Email failed but invitation doc was created — user can still share link
+      }
+
+      return inviteCode;
     },
     [tripId, user, tripName, destination]
   );
@@ -115,5 +152,33 @@ export const useTripMembers = (
     [tripId]
   );
 
-  return { handleInviteMember, handleRemoveMember, handleUpdateRole };
+  const handleCheckDuplicate = useCallback(
+    (email: string): Promise<InvitationWithId | null> => {
+      return checkDuplicateInvitation(tripId, email);
+    },
+    [tripId]
+  );
+
+  const handleCreateShareLink = useCallback(
+    (role: "editor" | "viewer"): Promise<string> => {
+      if (!user) throw new Error("Not authenticated");
+      return createShareLinkInvitation(
+        tripId,
+        role,
+        user.uid,
+        user.displayName ?? "",
+        tripName,
+        destination
+      );
+    },
+    [tripId, user, tripName, destination]
+  );
+
+  return {
+    handleInviteMember,
+    handleRemoveMember,
+    handleUpdateRole,
+    handleCheckDuplicate,
+    handleCreateShareLink,
+  };
 };

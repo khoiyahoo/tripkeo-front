@@ -81,6 +81,7 @@ export interface InvitationDoc {
   invitedByName: string;
   tripName: string;
   destination: string;
+  expiresAt: Timestamp;
   createdAt: Timestamp;
 }
 
@@ -108,6 +109,11 @@ export interface InvitationWithId extends InvitationDoc {
 }
 
 // ─── Form input types ────────────────────────────────────────
+export interface InvitedMember {
+  email: string;
+  role: "editor" | "viewer";
+}
+
 export interface CreateTripInput {
   name: string;
   destination: string;
@@ -117,7 +123,7 @@ export interface CreateTripInput {
   description?: string;
   budget: number;
   currency: string;
-  invitedEmails?: string[];
+  invitedMembers?: InvitedMember[];
 }
 
 export interface CreateActivityInput {

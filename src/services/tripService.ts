@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { sendInviteEmail } from "@/services/emailService";
 import { inviteMember } from "@/services/memberService";
 
 import type {
@@ -68,18 +69,31 @@ export const createTrip = async (
 
   const docRef = await addDoc(collection(db, TRIPS_COLLECTION), tripData);
 
-  // Send invitations to invited emails
-  if (input.invitedEmails && input.invitedEmails.length > 0) {
-    const invitePromises = input.invitedEmails.map((email) =>
-      inviteMember(
+  // Send invitations to invited members
+  if (input.invitedMembers && input.invitedMembers.length > 0) {
+    const invitePromises = input.invitedMembers.map(async (member) => {
+      const inviteCode = await inviteMember(
         docRef.id,
-        { email, role: "editor" },
+        { email: member.email, role: member.role },
         userId,
         userDisplayName,
         input.name,
         input.destination
-      )
-    );
+      );
+
+      const appUrl = window.location.origin;
+      try {
+        await sendInviteEmail({
+          toEmail: member.email,
+          fromName: userDisplayName,
+          tripName: input.name,
+          role: member.role,
+          inviteLink: `${appUrl}/invite/${inviteCode}`,
+        });
+      } catch {
+        // Email failed but invitation doc was created
+      }
+    });
     await Promise.all(invitePromises);
   }
 

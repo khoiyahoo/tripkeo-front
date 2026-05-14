@@ -22,7 +22,7 @@ import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
 import { cn } from "@/lib/utils";
 
-import type { CreateTripInput } from "@/types/firestore";
+import type { CreateTripInput, InvitedMember } from "@/types/firestore";
 
 const STEPS = [
   { id: 1, label: "Thông tin", icon: MapPin },
@@ -85,7 +85,7 @@ interface FormData {
   description: string;
   budget: string;
   currency: string;
-  invitedEmails: string[];
+  invitedMembers: InvitedMember[];
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -99,6 +99,7 @@ const CreateTripPage = () => {
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -109,7 +110,7 @@ const CreateTripPage = () => {
     description: "",
     budget: "",
     currency: "VND",
-    invitedEmails: [],
+    invitedMembers: [],
   });
 
   const updateField = <K extends keyof FormData>(
@@ -143,14 +144,17 @@ const CreateTripPage = () => {
       return;
     }
 
-    if (formData.invitedEmails.includes(trimmed)) {
+    if (formData.invitedMembers.some((m) => m.email === trimmed)) {
       setEmailError("Email đã được thêm");
       return;
     }
 
     setFormData((prev) => ({
       ...prev,
-      invitedEmails: [...prev.invitedEmails, trimmed],
+      invitedMembers: [
+        ...prev.invitedMembers,
+        { email: trimmed, role: inviteRole },
+      ],
     }));
     setEmailInput("");
   };
@@ -158,7 +162,7 @@ const CreateTripPage = () => {
   const removeEmail = (email: string) => {
     setFormData((prev) => ({
       ...prev,
-      invitedEmails: prev.invitedEmails.filter((e) => e !== email),
+      invitedMembers: prev.invitedMembers.filter((m) => m.email !== email),
     }));
   };
 
@@ -170,9 +174,11 @@ const CreateTripPage = () => {
     if (
       e.key === "Backspace" &&
       !emailInput &&
-      formData.invitedEmails.length > 0
+      formData.invitedMembers.length > 0
     ) {
-      removeEmail(formData.invitedEmails[formData.invitedEmails.length - 1]);
+      removeEmail(
+        formData.invitedMembers[formData.invitedMembers.length - 1].email
+      );
     }
   };
 
@@ -184,11 +190,14 @@ const CreateTripPage = () => {
       const trimmed = email.trim().toLowerCase();
       if (
         EMAIL_REGEX.test(trimmed) &&
-        !formData.invitedEmails.includes(trimmed)
+        !formData.invitedMembers.some((m) => m.email === trimmed)
       ) {
         setFormData((prev) => ({
           ...prev,
-          invitedEmails: [...prev.invitedEmails, trimmed],
+          invitedMembers: [
+            ...prev.invitedMembers,
+            { email: trimmed, role: inviteRole },
+          ],
         }));
       }
     }
@@ -225,8 +234,10 @@ const CreateTripPage = () => {
       description: formData.description.trim(),
       budget: Number(formData.budget) || 0,
       currency: formData.currency,
-      invitedEmails:
-        formData.invitedEmails.length > 0 ? formData.invitedEmails : undefined,
+      invitedMembers:
+        formData.invitedMembers.length > 0
+          ? formData.invitedMembers
+          : undefined,
     };
 
     try {
@@ -367,43 +378,55 @@ const CreateTripPage = () => {
               <div className="space-y-5">
                 <div>
                   <Label htmlFor="emailInput">Mời thành viên qua email</Label>
-                  <div className="mt-1.5 flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
-                    {formData.invitedEmails.map((email) => (
-                      <span
-                        key={email}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-0.5 text-primary-800 text-sm"
-                      >
-                        <Mail className="h-3 w-3" />
-                        {email}
-                        <button
-                          type="button"
-                          onClick={() => removeEmail(email)}
-                          className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary-200"
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="flex min-h-[42px] flex-1 flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
+                      {formData.invitedMembers.map((member) => (
+                        <span
+                          key={member.email}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-0.5 text-primary-800 text-sm"
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      id="emailInput"
-                      type="email"
-                      placeholder={
-                        formData.invitedEmails.length > 0
-                          ? "Thêm email..."
-                          : "Nhập email và nhấn Enter, dấu phẩy hoặc Space..."
+                          <Mail className="h-3 w-3" />
+                          {member.email}
+                          <button
+                            type="button"
+                            onClick={() => removeEmail(member.email)}
+                            className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary-200"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        id="emailInput"
+                        type="email"
+                        placeholder={
+                          formData.invitedMembers.length > 0
+                            ? "Thêm email..."
+                            : "Nhập email và nhấn Enter, dấu phẩy hoặc Space..."
+                        }
+                        className="min-w-[200px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-on-surface-variant/60"
+                        value={emailInput}
+                        onChange={(e) => {
+                          setEmailInput(e.target.value);
+                          setEmailError(null);
+                        }}
+                        onKeyDown={handleEmailKeyDown}
+                        onPaste={handleEmailPaste}
+                        onBlur={() => {
+                          if (emailInput.trim()) addEmail(emailInput);
+                        }}
+                      />
+                    </div>
+                    <select
+                      value={inviteRole}
+                      onChange={(e) =>
+                        setInviteRole(e.target.value as "editor" | "viewer")
                       }
-                      className="min-w-[200px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-on-surface-variant/60"
-                      value={emailInput}
-                      onChange={(e) => {
-                        setEmailInput(e.target.value);
-                        setEmailError(null);
-                      }}
-                      onKeyDown={handleEmailKeyDown}
-                      onPaste={handleEmailPaste}
-                      onBlur={() => {
-                        if (emailInput.trim()) addEmail(emailInput);
-                      }}
-                    />
+                      className="h-[42px] rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="editor">Editor</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
                   </div>
                   {emailError && (
                     <p className="mt-1 text-error-500 text-sm">{emailError}</p>
@@ -414,26 +437,29 @@ const CreateTripPage = () => {
                   </p>
                 </div>
 
-                {formData.invitedEmails.length > 0 ? (
+                {formData.invitedMembers.length > 0 ? (
                   <div className="space-y-2">
                     <p className="font-medium text-on-surface text-sm">
-                      {formData.invitedEmails.length} thành viên sẽ được mời
+                      {formData.invitedMembers.length} thành viên sẽ được mời
                     </p>
                     <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface-dim/50 p-3">
-                      {formData.invitedEmails.map((email) => (
+                      {formData.invitedMembers.map((member) => (
                         <div
-                          key={email}
+                          key={member.email}
                           className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-dim"
                         >
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4 text-on-surface-variant" />
                             <span className="text-on-surface text-sm">
-                              {email}
+                              {member.email}
+                            </span>
+                            <span className="rounded-full bg-surface-dim px-2 py-0.5 text-on-surface-variant text-xs">
+                              {member.role === "editor" ? "Editor" : "Viewer"}
                             </span>
                           </div>
                           <button
                             type="button"
-                            onClick={() => removeEmail(email)}
+                            onClick={() => removeEmail(member.email)}
                             className="rounded p-1 text-on-surface-variant transition-colors hover:bg-error-100 hover:text-error-500"
                           >
                             <X className="h-3.5 w-3.5" />
