@@ -1,4 +1,5 @@
 export type TripStatus = "upcoming" | "ongoing" | "completed";
+export type TimePeriod = "morning" | "afternoon" | "evening";
 export type ActivityType =
   | "transport"
   | "stay"

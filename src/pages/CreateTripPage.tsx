@@ -1,21 +1,28 @@
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
   Calendar,
   Check,
+  Loader2,
+  Mail,
   MapPin,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
 import { cn } from "@/lib/utils";
+
+import type { CreateTripInput } from "@/types/firestore";
 
 const STEPS = [
   { id: 1, label: "Thông tin", icon: MapPin },
@@ -30,14 +37,6 @@ const COVER_IMAGES = [
   "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=400&q=80",
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80",
   "https://images.unsplash.com/photo-1540979388-5b4b9b3c5e0d?w=400&q=80",
-];
-
-const BUDGET_CATEGORIES = [
-  { key: "transport", label: "Di chuyển", icon: "✈️" },
-  { key: "stay", label: "Chỗ ở", icon: "🏨" },
-  { key: "food", label: "Ăn uống", icon: "🍜" },
-  { key: "sights", label: "Tham quan", icon: "🎡" },
-  { key: "other", label: "Khác", icon: "📦" },
 ];
 
 const StepIndicator = ({ currentStep }: { currentStep: number }) => (
@@ -77,148 +76,167 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => (
   </div>
 );
 
-const Step1BasicInfo = ({
-  selectedCover,
-  onSelectCover,
-}: {
-  selectedCover: string;
-  onSelectCover: (url: string) => void;
-}) => (
-  <div className="space-y-5">
-    <div>
-      <Label htmlFor="tripName">Tên chuyến đi *</Label>
-      <Input
-        id="tripName"
-        placeholder="VD: Đà Nẵng - Hội An 4N3Đ"
-        className="mt-1.5"
-      />
-    </div>
-    <div>
-      <Label htmlFor="destination">Điểm đến *</Label>
-      <div className="relative mt-1.5">
-        <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-        <Input
-          id="destination"
-          placeholder="Tìm điểm đến..."
-          className="pl-9"
-        />
-      </div>
-    </div>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <Label htmlFor="startDate">Ngày bắt đầu *</Label>
-        <div className="relative mt-1.5">
-          <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-          <Input id="startDate" type="date" className="pl-9" />
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="endDate">Ngày kết thúc *</Label>
-        <div className="relative mt-1.5">
-          <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-          <Input id="endDate" type="date" className="pl-9" />
-        </div>
-      </div>
-    </div>
-    <div>
-      <Label>Ảnh bìa</Label>
-      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {COVER_IMAGES.map((url) => (
-          <button
-            key={url}
-            type="button"
-            onClick={() => onSelectCover(url)}
-            className={cn(
-              "aspect-video overflow-hidden rounded-lg border-2 transition",
-              selectedCover === url
-                ? "border-primary-500 ring-2 ring-primary-200"
-                : "border-transparent hover:border-outline-variant"
-            )}
-          >
-            <img
-              src={url}
-              alt="Cover option"
-              className="h-full w-full object-cover"
-            />
-          </button>
-        ))}
-      </div>
-    </div>
-    <div>
-      <Label htmlFor="description">Mô tả ngắn</Label>
-      <Textarea
-        id="description"
-        placeholder="Mô tả chuyến đi..."
-        className="mt-1.5"
-        rows={3}
-      />
-    </div>
-  </div>
-);
+interface FormData {
+  name: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  coverImage: string;
+  description: string;
+  budget: string;
+  currency: string;
+  invitedEmails: string[];
+}
 
-const Step2Members = () => (
-  <div className="space-y-5">
-    <div>
-      <Label htmlFor="searchMember">Mời thành viên</Label>
-      <div className="relative mt-1.5">
-        <Users className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-        <Input
-          id="searchMember"
-          placeholder="Tìm kiếm bạn bè hoặc nhập email..."
-          className="pl-9"
-        />
-      </div>
-    </div>
-    <div className="rounded-xl bg-surface-dim/50 p-6 text-center">
-      <Users className="mx-auto mb-2 h-10 w-10 text-on-surface-variant/50" />
-      <p className="font-medium text-on-surface">Chưa có thành viên nào</p>
-      <p className="mt-1 text-on-surface-variant text-sm">
-        Tìm kiếm hoặc chia sẻ link mời để thêm bạn bè
-      </p>
-      <Button variant="outline" size="sm" className="mt-4">
-        Sao chép link mời
-      </Button>
-    </div>
-  </div>
-);
-
-const Step3Budget = () => (
-  <div className="space-y-5">
-    <div>
-      <Label htmlFor="totalBudget">Tổng ngân sách dự kiến</Label>
-      <div className="relative mt-1.5">
-        <span className="absolute top-1/2 left-3 -translate-y-1/2 font-medium text-on-surface-variant text-sm">
-          ₫
-        </span>
-        <Input
-          id="totalBudget"
-          type="number"
-          placeholder="10,000,000"
-          className="pl-7"
-        />
-      </div>
-    </div>
-    <div>
-      <Label className="mb-3 block">Phân bổ theo hạng mục</Label>
-      <div className="space-y-3">
-        {BUDGET_CATEGORIES.map((cat) => (
-          <div key={cat.key} className="flex items-center gap-3">
-            <span className="w-8 text-center text-lg">{cat.icon}</span>
-            <span className="w-24 font-medium text-on-surface text-sm">
-              {cat.label}
-            </span>
-            <Input type="number" placeholder="0" className="flex-1" />
-            <span className="text-on-surface-variant text-sm">₫</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CreateTripPage = () => {
+  const navigate = useNavigate();
+  const { handleCreateTrip } = useTrips();
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedCover, setSelectedCover] = useState(COVER_IMAGES[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState<FormData>({
+    name: "",
+    destination: "",
+    startDate: "",
+    endDate: "",
+    coverImage: COVER_IMAGES[0],
+    description: "",
+    budget: "",
+    currency: "VND",
+    invitedEmails: [],
+  });
+
+  const updateField = <K extends keyof FormData>(
+    field: K,
+    value: FormData[K]
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === "startDate" || field === "endDate") {
+      setDateError(null);
+    }
+  };
+
+  const validateDates = (): boolean => {
+    if (!formData.startDate || !formData.endDate) return true;
+    if (formData.startDate > formData.endDate) {
+      setDateError("Ngày kết thúc phải sau ngày bắt đầu");
+      return false;
+    }
+    setDateError(null);
+    return true;
+  };
+
+  const addEmail = (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    setEmailError(null);
+
+    if (!trimmed) return;
+
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setEmailError("Email không hợp lệ");
+      return;
+    }
+
+    if (formData.invitedEmails.includes(trimmed)) {
+      setEmailError("Email đã được thêm");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      invitedEmails: [...prev.invitedEmails, trimmed],
+    }));
+    setEmailInput("");
+  };
+
+  const removeEmail = (email: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      invitedEmails: prev.invitedEmails.filter((e) => e !== email),
+    }));
+  };
+
+  const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+      e.preventDefault();
+      addEmail(emailInput);
+    }
+    if (
+      e.key === "Backspace" &&
+      !emailInput &&
+      formData.invitedEmails.length > 0
+    ) {
+      removeEmail(formData.invitedEmails[formData.invitedEmails.length - 1]);
+    }
+  };
+
+  const handleEmailPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const emails = pasted.split(/[,;\s\n]+/).filter(Boolean);
+    for (const email of emails) {
+      const trimmed = email.trim().toLowerCase();
+      if (
+        EMAIL_REGEX.test(trimmed) &&
+        !formData.invitedEmails.includes(trimmed)
+      ) {
+        setFormData((prev) => ({
+          ...prev,
+          invitedEmails: [...prev.invitedEmails, trimmed],
+        }));
+      }
+    }
+    setEmailInput("");
+  };
+
+  const isStep1Valid =
+    formData.name.trim() !== "" &&
+    formData.destination.trim() !== "" &&
+    formData.startDate !== "" &&
+    formData.endDate !== "" &&
+    formData.startDate <= formData.endDate;
+
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (!validateDates()) return;
+      if (!isStep1Valid) return;
+    }
+    setCurrentStep((s) => Math.min(3, s + 1));
+  };
+
+  const handleSubmit = async () => {
+    if (!isStep1Valid) return;
+
+    setIsSubmitting(true);
+    setFormError(null);
+
+    const input: CreateTripInput = {
+      name: formData.name.trim(),
+      destination: formData.destination.trim(),
+      coverImage: formData.coverImage,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      description: formData.description.trim(),
+      budget: Number(formData.budget) || 0,
+      currency: formData.currency,
+      invitedEmails:
+        formData.invitedEmails.length > 0 ? formData.invitedEmails : undefined,
+    };
+
+    try {
+      const tripId = await handleCreateTrip(input);
+      navigate({ to: "/trips/$tripId", params: { tripId } });
+    } catch {
+      setFormError("Không thể tạo chuyến đi. Vui lòng thử lại.");
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <MainLayout currentPath="/trips">
@@ -227,7 +245,7 @@ const CreateTripPage = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => window.history.back()}
+            onClick={() => navigate({ to: "/" })}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -241,13 +259,226 @@ const CreateTripPage = () => {
         <Card className="border-none shadow-sm">
           <CardContent className="p-6">
             {currentStep === 1 && (
-              <Step1BasicInfo
-                selectedCover={selectedCover}
-                onSelectCover={setSelectedCover}
-              />
+              <div className="space-y-5">
+                <div>
+                  <Label htmlFor="tripName">Tên chuyến đi *</Label>
+                  <Input
+                    id="tripName"
+                    placeholder="VD: Đà Nẵng - Hội An 4N3Đ"
+                    className="mt-1.5"
+                    value={formData.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="destination">Điểm đến *</Label>
+                  <div className="relative mt-1.5">
+                    <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <Input
+                      id="destination"
+                      placeholder="Tìm điểm đến..."
+                      className="pl-9"
+                      value={formData.destination}
+                      onChange={(e) =>
+                        updateField("destination", e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="startDate">Ngày bắt đầu *</Label>
+                    <div className="relative mt-1.5">
+                      <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                      <Input
+                        id="startDate"
+                        type="date"
+                        className="pl-9"
+                        value={formData.startDate}
+                        onChange={(e) => {
+                          updateField("startDate", e.target.value);
+                          if (
+                            formData.endDate &&
+                            e.target.value > formData.endDate
+                          ) {
+                            updateField("endDate", e.target.value);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="endDate">Ngày kết thúc *</Label>
+                    <div className="relative mt-1.5">
+                      <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                      <Input
+                        id="endDate"
+                        type="date"
+                        className="pl-9"
+                        min={formData.startDate || undefined}
+                        value={formData.endDate}
+                        onChange={(e) => updateField("endDate", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {dateError && (
+                  <p className="text-error-500 text-sm">{dateError}</p>
+                )}
+                <div>
+                  <Label>Ảnh bìa</Label>
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {COVER_IMAGES.map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => updateField("coverImage", url)}
+                        className={cn(
+                          "aspect-video overflow-hidden rounded-lg border-2 transition",
+                          formData.coverImage === url
+                            ? "border-primary-500 ring-2 ring-primary-200"
+                            : "border-transparent hover:border-outline-variant"
+                        )}
+                      >
+                        <img
+                          src={url}
+                          alt="Cover option"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="description">Mô tả ngắn</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Mô tả chuyến đi..."
+                    className="mt-1.5"
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => updateField("description", e.target.value)}
+                  />
+                </div>
+              </div>
             )}
-            {currentStep === 2 && <Step2Members />}
-            {currentStep === 3 && <Step3Budget />}
+
+            {currentStep === 2 && (
+              <div className="space-y-5">
+                <div>
+                  <Label htmlFor="emailInput">Mời thành viên qua email</Label>
+                  <div className="mt-1.5 flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
+                    {formData.invitedEmails.map((email) => (
+                      <span
+                        key={email}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-0.5 text-primary-800 text-sm"
+                      >
+                        <Mail className="h-3 w-3" />
+                        {email}
+                        <button
+                          type="button"
+                          onClick={() => removeEmail(email)}
+                          className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary-200"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      id="emailInput"
+                      type="email"
+                      placeholder={
+                        formData.invitedEmails.length > 0
+                          ? "Thêm email..."
+                          : "Nhập email và nhấn Enter, dấu phẩy hoặc Space..."
+                      }
+                      className="min-w-[200px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-on-surface-variant/60"
+                      value={emailInput}
+                      onChange={(e) => {
+                        setEmailInput(e.target.value);
+                        setEmailError(null);
+                      }}
+                      onKeyDown={handleEmailKeyDown}
+                      onPaste={handleEmailPaste}
+                      onBlur={() => {
+                        if (emailInput.trim()) addEmail(emailInput);
+                      }}
+                    />
+                  </div>
+                  {emailError && (
+                    <p className="mt-1 text-error-500 text-sm">{emailError}</p>
+                  )}
+                  <p className="mt-1.5 text-on-surface-variant text-xs">
+                    Nhấn Enter, dấu phẩy, hoặc Space để thêm email. Có thể paste
+                    nhiều email cùng lúc.
+                  </p>
+                </div>
+
+                {formData.invitedEmails.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="font-medium text-on-surface text-sm">
+                      {formData.invitedEmails.length} thành viên sẽ được mời
+                    </p>
+                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface-dim/50 p-3">
+                      {formData.invitedEmails.map((email) => (
+                        <div
+                          key={email}
+                          className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-dim"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-on-surface-variant" />
+                            <span className="text-on-surface text-sm">
+                              {email}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeEmail(email)}
+                            className="rounded p-1 text-on-surface-variant transition-colors hover:bg-error-100 hover:text-error-500"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-surface-dim/50 p-6 text-center">
+                    <Users className="mx-auto mb-2 h-10 w-10 text-on-surface-variant/50" />
+                    <p className="font-medium text-on-surface">
+                      Bạn có thể mời thêm sau khi tạo chuyến đi
+                    </p>
+                    <p className="mt-1 text-on-surface-variant text-sm">
+                      Nhập email thành viên để mời ngay hoặc bỏ qua bước này
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="space-y-5">
+                <div>
+                  <Label htmlFor="totalBudget">Tổng ngân sách dự kiến</Label>
+                  <div className="relative mt-1.5">
+                    <span className="absolute top-1/2 left-3 -translate-y-1/2 font-medium text-on-surface-variant text-sm">
+                      ₫
+                    </span>
+                    <Input
+                      id="totalBudget"
+                      type="number"
+                      placeholder="10,000,000"
+                      className="pl-7"
+                      value={formData.budget}
+                      onChange={(e) => updateField("budget", e.target.value)}
+                    />
+                  </div>
+                </div>
+                {formError && (
+                  <p className="text-error-500 text-sm">{formError}</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -261,13 +492,24 @@ const CreateTripPage = () => {
             Quay lại
           </Button>
           {currentStep < 3 ? (
-            <Button onClick={() => setCurrentStep((s) => Math.min(3, s + 1))}>
+            <Button
+              onClick={handleNextStep}
+              disabled={currentStep === 1 && !isStep1Valid}
+            >
               Tiếp tục
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button className="bg-primary-600 hover:bg-primary-700">
-              <Check className="mr-2 h-4 w-4" />
+            <Button
+              className="bg-primary-600 hover:bg-primary-700"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !isStep1Valid}
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
               Tạo chuyến đi
             </Button>
           )}

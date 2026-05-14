@@ -1,110 +1,193 @@
+import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Calendar,
   ClipboardList,
   DollarSign,
+  Loader2,
   Map as MapIcon,
   MapPin,
-  Settings,
+  Pencil,
+  Trash2,
   Users,
-  Vote,
 } from "lucide-react";
+import { useState } from "react";
 
+import { EditTripDialog } from "@/components/organisms/EditTripDialog";
 import { ExpensesTab } from "@/components/organisms/ExpensesTab";
 import { ItineraryTab } from "@/components/organisms/ItineraryTab";
 import { MembersTab } from "@/components/organisms/MembersTab";
-import { NotesTab } from "@/components/organisms/NotesTab";
-import { VotesTab } from "@/components/organisms/VotesTab";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  MOCK_CHECKLIST,
-  MOCK_DEBTS,
-  MOCK_EXPENSES,
-  MOCK_MEMBERS,
-  MOCK_NOTES,
-  MOCK_POLLS,
-  MOCK_SCHEDULE,
-} from "@/constants/mockData";
+import { useExpenses } from "@/hooks/useExpenses";
+import { useItinerary } from "@/hooks/useItinerary";
+import { useTripMembers } from "@/hooks/useMembers";
+import { useTrip } from "@/hooks/useTrip";
+import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { useAuthStore } from "@/stores/authStore";
 import {
-  formatDateRange,
+  formatTimestampRange,
+  generateDaysList,
   getStatusColor,
   getStatusLabel,
+  getTripStatus,
 } from "@/utils/format";
-
-const TRIP_DATA = {
-  id: "t1",
-  name: "Đà Nẵng - Hội An 4N3Đ",
-  destination: "Đà Nẵng, Hội An",
-  coverImage:
-    "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=1200&q=80",
-  startDate: "2026-06-15",
-  endDate: "2026-06-18",
-  status: "upcoming" as const,
-  budget: 16_000_000,
-  totalSpent: 17_350_000,
-  description:
-    "Chuyến đi nhóm 5 người khám phá Đà Nẵng và phố cổ Hội An. 4 ngày 3 đêm đầy ắp trải nghiệm!",
-};
 
 const TABS = [
   { value: "itinerary", label: "Lịch trình", icon: ClipboardList },
   { value: "expenses", label: "Chi phí", icon: DollarSign },
   { value: "members", label: "Thành viên", icon: Users },
-  { value: "votes", label: "Bình chọn", icon: Vote },
-  { value: "notes", label: "Ghi chú", icon: ClipboardList },
   { value: "map", label: "Bản đồ", icon: MapIcon },
 ];
 
 const TripDetailPage = () => {
+  const { tripId } = useParams({ from: "/trips/$tripId" });
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const { trip, isLoading, error } = useTrip(tripId);
+  const { handleDeleteTrip } = useTrips();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const {
+    activities,
+    isLoading: isActivitiesLoading,
+    handleAddActivity,
+    handleUpdateActivity,
+    handleDeleteActivity,
+    handleBatchUpdateOrders,
+  } = useItinerary(tripId);
+  const {
+    expenses,
+    totalSpent,
+    balances,
+    debts,
+    isLoading: isExpensesLoading,
+    handleAddExpense,
+    handleDeleteExpense,
+  } = useExpenses(tripId, trip?.members ?? {});
+  const { handleInviteMember, handleRemoveMember, handleUpdateRole } =
+    useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
+
+  if (isLoading) {
+    return (
+      <MainLayout currentPath="/trips">
+        <div className="flex flex-col items-center justify-center py-24">
+          <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" />
+          <p className="text-on-surface-variant text-sm">
+            Đang tải chuyến đi...
+          </p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !trip) {
+    return (
+      <MainLayout currentPath="/trips">
+        <div className="flex flex-col items-center justify-center py-24">
+          <MapPin className="mb-3 h-12 w-12 text-on-surface-variant/50" />
+          <p className="font-medium text-on-surface">
+            Không tìm thấy chuyến đi
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => window.history.back()}
+          >
+            Quay lại
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const status = getTripStatus(trip.startDate, trip.endDate);
+  const memberEntries = Object.entries(trip.members);
+  const days = generateDaysList(trip.startDate, trip.endDate);
+  const currentUserRole = user ? trip.members[user.uid]?.role : undefined;
+  const isOwner = currentUserRole === "owner";
+
+  // Build tripMeta for PDF export
+  const tripMeta = {
+    title: trip.name,
+    destination: trip.destination,
+    startDate: new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(trip.startDate.toDate()),
+    endDate: new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(trip.endDate.toDate()),
+    memberNames: memberEntries.map(([, m]) => m.displayName),
+  };
+
+  // Group activities by date for itinerary
+  const activitiesByDate = activities.reduce(
+    (acc, activity) => {
+      if (!acc[activity.date]) acc[activity.date] = [];
+      acc[activity.date].push(activity);
+      return acc;
+    },
+    {} as Record<string, typeof activities>
+  );
+
   return (
     <MainLayout currentPath="/trips">
       <div className="space-y-6">
         {/* Hero header */}
         <div className="relative overflow-hidden rounded-2xl">
           <img
-            src={TRIP_DATA.coverImage}
-            alt={TRIP_DATA.name}
+            src={trip.coverImage}
+            alt={trip.name}
             className="h-48 w-full object-cover sm:h-56 lg:h-64"
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute right-4 bottom-4 left-4 sm:right-6 sm:bottom-6 sm:left-6">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <Badge className={`mb-2 ${getStatusColor(TRIP_DATA.status)}`}>
-                  {getStatusLabel(TRIP_DATA.status)}
+                <Badge className={`mb-2 ${getStatusColor(status)}`}>
+                  {getStatusLabel(status)}
                 </Badge>
                 <h1 className="font-bold text-2xl text-white sm:text-3xl">
-                  {TRIP_DATA.name}
+                  {trip.name}
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/80">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
-                    {TRIP_DATA.destination}
+                    {trip.destination}
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    {formatDateRange(TRIP_DATA.startDate, TRIP_DATA.endDate)}
+                    {formatTimestampRange(trip.startDate, trip.endDate)}
                   </span>
                 </div>
               </div>
               <div className="hidden shrink-0 sm:block">
                 <div className="flex -space-x-2">
-                  {MOCK_MEMBERS.slice(0, 4).map((m) => (
-                    <Avatar
-                      key={m.id}
-                      className="h-9 w-9 border-2 border-white"
-                    >
-                      <AvatarImage src={m.avatar} alt={m.name} />
-                      <AvatarFallback>{m.name[0]}</AvatarFallback>
+                  {memberEntries.slice(0, 4).map(([uid, m]) => (
+                    <Avatar key={uid} className="h-9 w-9 border-2 border-white">
+                      <AvatarImage src={m.photoURL} alt={m.displayName} />
+                      <AvatarFallback>{m.displayName[0]}</AvatarFallback>
                     </Avatar>
                   ))}
-                  {MOCK_MEMBERS.length > 4 && (
+                  {memberEntries.length > 4 && (
                     <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-white/20 font-medium text-sm text-white backdrop-blur-sm">
-                      +{MOCK_MEMBERS.length - 4}
+                      +{memberEntries.length - 4}
                     </div>
                   )}
                 </div>
@@ -119,14 +202,78 @@ const TripDetailPage = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-4 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-16 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <Pencil className="h-5 w-5" />
+            </Button>
+          )}
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 bg-black/20 text-white backdrop-blur-sm hover:bg-error-500/80"
+              onClick={() => setIsDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          )}
         </div>
+
+        {/* Delete confirmation dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Xóa chuyến đi</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc muốn xóa &quot;{trip.name}&quot;? Tất cả lịch trình,
+                chi phí và thành viên sẽ bị xóa vĩnh viễn. Hành động này không
+                thể hoàn tác.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await handleDeleteTrip(tripId);
+                    navigate({ to: "/" });
+                  } catch {
+                    setIsDeleting(false);
+                  }
+                }}
+              >
+                {isDeleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Xóa chuyến đi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit trip dialog */}
+        <EditTripDialog
+          isOpen={isEditDialogOpen}
+          onClose={() => setIsEditDialogOpen(false)}
+          trip={trip}
+          activities={activities}
+        />
 
         {/* Tabs */}
         <Tabs defaultValue="itinerary" className="w-full">
@@ -145,25 +292,42 @@ const TripDetailPage = () => {
 
           <div className="mt-6">
             <TabsContent value="itinerary">
-              <ItineraryTab schedule={MOCK_SCHEDULE} />
+              <ItineraryTab
+                tripId={tripId}
+                tripMeta={tripMeta}
+                days={days}
+                activitiesByDate={activitiesByDate}
+                isLoading={isActivitiesLoading}
+                onAddActivity={handleAddActivity}
+                onUpdateActivity={handleUpdateActivity}
+                onDeleteActivity={handleDeleteActivity}
+                onBatchUpdateOrders={handleBatchUpdateOrders}
+                currentUserRole={currentUserRole}
+                currentUserId={user?.uid}
+              />
             </TabsContent>
             <TabsContent value="expenses">
               <ExpensesTab
-                expenses={MOCK_EXPENSES}
-                debts={MOCK_DEBTS}
-                members={MOCK_MEMBERS}
-                budget={TRIP_DATA.budget}
-                totalSpent={TRIP_DATA.totalSpent}
+                tripId={tripId}
+                expenses={expenses}
+                debts={debts}
+                balances={balances}
+                members={trip.members}
+                budget={trip.budget}
+                totalSpent={totalSpent}
+                isLoading={isExpensesLoading}
+                onAddExpense={handleAddExpense}
+                onDeleteExpense={handleDeleteExpense}
               />
             </TabsContent>
             <TabsContent value="members">
-              <MembersTab members={MOCK_MEMBERS} />
-            </TabsContent>
-            <TabsContent value="votes">
-              <VotesTab polls={MOCK_POLLS} />
-            </TabsContent>
-            <TabsContent value="notes">
-              <NotesTab notes={MOCK_NOTES} checklist={MOCK_CHECKLIST} />
+              <MembersTab
+                members={trip.members}
+                currentUserRole={currentUserRole}
+                onInviteMember={handleInviteMember}
+                onRemoveMember={handleRemoveMember}
+                onUpdateRole={handleUpdateRole}
+              />
             </TabsContent>
             <TabsContent value="map">
               <div className="flex h-96 flex-col items-center justify-center rounded-2xl bg-surface-dim/50">

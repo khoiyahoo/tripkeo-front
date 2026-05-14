@@ -47,9 +47,15 @@
   --color-success-700: #15803d;
 
   --color-error-50: #fef2f2;
+  --color-error-100: #fee2e2;
   --color-error-500: #ef4444;
   --color-error-600: #dc2626;
   --color-error-700: #b91c1c;
+
+  /* Maps the shadcn/ui --destructive CSS variable to Tailwind v4 utilities.
+     Tailwind v4 requires --color-* prefix in @theme to generate bg-destructive etc. */
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
 
   --color-surface: #f5fafb;
   --color-surface-dim: #e8eef0;

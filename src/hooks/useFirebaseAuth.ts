@@ -2,6 +2,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useEffect } from "react";
 
 import { auth } from "@/lib/firebase";
+import { saveUserProfile } from "@/services/userService";
 import { useAuthStore } from "@/stores/authStore";
 
 export const useFirebaseAuth = (): void => {
@@ -12,6 +13,10 @@ export const useFirebaseAuth = (): void => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setIsInitialized(true);
+
+      if (user) {
+        saveUserProfile(user).catch(() => null);
+      }
     });
 
     return unsubscribe;
