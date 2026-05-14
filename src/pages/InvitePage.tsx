@@ -1,12 +1,10 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { doc, getDoc } from "firebase/firestore";
 import { Loader2, MapPin, UserPlus, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { consumePendingCallback, useRequireAuth } from "@/hooks/useRequireAuth";
-import { db } from "@/lib/firebase";
 import {
   acceptInvitation,
   declineInvitation,
@@ -14,7 +12,7 @@ import {
 } from "@/services/memberService";
 import { useAuthStore } from "@/stores/authStore";
 
-import type { InvitationWithId, TripDoc } from "@/types/firestore";
+import type { InvitationWithId } from "@/types/firestore";
 
 const InvitePage = () => {
   const { inviteCode } = useParams({ strict: false }) as {
@@ -30,13 +28,16 @@ const InvitePage = () => {
   const [invitation, setInvitation] = useState<
     (InvitationWithId & { tripId: string }) | null
   >(null);
-  const [tripName, setTripName] = useState("");
-  const [tripDestination, setTripDestination] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
+        if (!inviteCode) {
+          setError("Link không hợp lệ");
+          return;
+        }
+
         const inv = await findInvitationByCode(inviteCode);
         if (!inv) {
           setError("Link không hợp lệ hoặc đã hết hạn");
@@ -48,14 +49,12 @@ const InvitePage = () => {
           return;
         }
 
-        setInvitation(inv);
-
-        const tripSnap = await getDoc(doc(db, "trips", inv.tripId));
-        if (tripSnap.exists()) {
-          const data = tripSnap.data() as TripDoc;
-          setTripName(data.name);
-          setTripDestination(data.destination);
+        if (inv.status !== "pending") {
+          setError("Lời mời đã được sử dụng");
+          return;
         }
+
+        setInvitation(inv);
       } catch {
         setError("Đã xảy ra lỗi khi tải lời mời");
       } finally {
@@ -147,12 +146,12 @@ const InvitePage = () => {
 
         <div className="space-y-3 rounded-xl bg-surface-dim/50 p-5">
           <h2 className="font-semibold text-lg text-on-surface">
-            {tripName || "Chuyến đi"}
+            {invitation.tripName || "Chuyến đi"}
           </h2>
-          {tripDestination && (
+          {invitation.destination && (
             <div className="flex items-center gap-2 text-on-surface-variant text-sm">
               <MapPin className="h-4 w-4" />
-              {tripDestination}
+              {invitation.destination}
             </div>
           )}
           <div className="inline-block rounded-full bg-primary-100 px-3 py-1 text-primary-800 text-sm">
