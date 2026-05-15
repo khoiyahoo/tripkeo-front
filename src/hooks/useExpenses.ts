@@ -4,9 +4,11 @@ import {
   type BudgetStatus,
   calculateBalances,
   calculateDebts,
+  calculateSettlement,
   createExpense,
   deleteExpense,
   getBudgetStatus,
+  type SettlementResult,
   subscribeToExpenses,
   updateExpense,
 } from "@/services/expenseService";
@@ -24,6 +26,7 @@ interface UseExpensesResult {
   expenses: ExpenseWithId[];
   totalSpent: number;
   budgetStatus: BudgetStatus;
+  settlement: SettlementResult;
   balances: MemberBalance[];
   debts: DebtSettlement[];
   isLoading: boolean;
@@ -81,6 +84,11 @@ export const useExpenses = (
     [expenses, budget, memberCount]
   );
 
+  const settlement = useMemo(
+    () => calculateSettlement(expenses, members, budget),
+    [expenses, members, budget]
+  );
+
   const balances = useMemo(
     () => calculateBalances(expenses, members, budget),
     [expenses, members, budget]
@@ -91,16 +99,16 @@ export const useExpenses = (
   const handleAddExpense = useCallback(
     (input: CreateExpenseInput): Promise<string> => {
       if (!user) throw new Error("Not authenticated");
-      return createExpense(tripId, input, user.uid);
+      return createExpense(tripId, input, user.uid, memberCount);
     },
-    [tripId, user]
+    [tripId, user, memberCount]
   );
 
   const handleUpdateExpense = useCallback(
     (expenseId: string, data: Partial<CreateExpenseInput>): Promise<void> => {
-      return updateExpense(tripId, expenseId, data);
+      return updateExpense(tripId, expenseId, data, memberCount);
     },
-    [tripId]
+    [tripId, memberCount]
   );
 
   const handleDeleteExpense = useCallback(
@@ -114,6 +122,7 @@ export const useExpenses = (
     expenses,
     totalSpent,
     budgetStatus,
+    settlement,
     balances,
     debts,
     isLoading,

@@ -12,12 +12,9 @@ import {
 } from "@react-pdf/renderer";
 
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
+import type { SettlementResult } from "@/services/expenseService";
 
-import type {
-  DebtSettlement,
-  ExpenseWithId,
-  MemberBalance,
-} from "@/types/firestore";
+import type { ExpenseWithId } from "@/types/firestore";
 
 // ─── Font Registration ────────────────────────────────────────
 Font.register({
@@ -43,9 +40,9 @@ export interface ExpensePdfProps {
   meta: ExpensePdfMeta;
   expenses: ExpenseWithId[];
   budget: number;
-  totalSpent: number;
-  balances: MemberBalance[];
-  debts: DebtSettlement[];
+  /** Only fund-affecting expenses (Cases 1+2+3). Excludes Case 4. */
+  totalGroupSpent: number;
+  settlement: SettlementResult;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -210,11 +207,10 @@ export const ExpensePdfDocument = ({
   meta,
   expenses,
   budget,
-  totalSpent,
-  balances,
-  debts,
+  totalGroupSpent,
+  settlement,
 }: ExpensePdfProps) => {
-  const remaining = budget - totalSpent;
+  const remaining = settlement.fundRemaining;
   const perPerson = meta.memberCount > 0 ? budget / meta.memberCount : 0;
 
   return (
@@ -252,8 +248,10 @@ export const ExpensePdfDocument = ({
             )}
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Đã chi</Text>
-            <Text style={styles.summaryValue}>{fmtCurrency(totalSpent)}</Text>
+            <Text style={styles.summaryLabel}>Đã chi (quỹ)</Text>
+            <Text style={styles.summaryValue}>
+              {fmtCurrency(totalGroupSpent)}
+            </Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Còn lại</Text>
@@ -341,56 +339,166 @@ export const ExpensePdfDocument = ({
           })}
         </View>
 
-        {/* Balances */}
-        {balances.some((b) => b.net !== 0) && (
-          <View wrap={false}>
-            <Text style={styles.sectionTitle}>Hoàn tiền (phát sinh)</Text>
-            <View style={styles.table}>
-              {balances
-                .filter((b) => b.net !== 0)
-                .sort((a, b) => b.net - a.net)
-                .map((b) => (
-                  <View key={b.uid} style={styles.balanceRow}>
-                    <Text style={{ fontSize: 8.5 }}>{b.displayName}</Text>
+        {/* Settlement section */}
+        <View wrap={false}>
+          <Text style={styles.sectionTitle}>📋 Quyết toán quỹ</Text>
+
+          {/* Fund balance breakdown */}
+          <View style={[styles.table, { marginBottom: 8 }]}>
+            <View style={[styles.balanceRow, { backgroundColor: "#f8fafc" }]}>
+              <Text style={{ fontSize: 8.5 }}>Ngân sách</Text>
+              <Text style={{ fontSize: 8.5, fontWeight: 700 }}>
+                {fmtCurrency(budget)}
+              </Text>
+            </View>
+            <View style={styles.balanceRow}>
+              <Text style={{ fontSize: 8.5 }}>Chi quỹ chung</Text>
+              <Text style={{ fontSize: 8.5 }}>
+                − {fmtCurrency(settlement.groupFundSpent)}
+              </Text>
+            </View>
+            {settlement.totalReimburseToMembers > 0 && (
+              <View style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5 }}>Hoàn cho member trả hộ</Text>
+                <Text style={{ fontSize: 8.5 }}>
+                  − {fmtCurrency(settlement.totalReimburseToMembers)}
+                </Text>
+              </View>
+            )}
+            {settlement.totalRefundNonParticipants > 0 && (
+              <View style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5 }}>
+                  Hoàn cho member không tham gia
+                </Text>
+                <Text style={{ fontSize: 8.5 }}>
+                  −{" "}
+                  {fmtCurrency(
+                    Math.round(settlement.totalRefundNonParticipants)
+                  )}
+                </Text>
+              </View>
+            )}
+            <View
+              style={[
+                styles.balanceRow,
+                { backgroundColor: remaining < 0 ? C.redBg : C.greenBg },
+              ]}
+            >
+              <Text style={{ fontSize: 8.5, fontWeight: 700 }}>
+                Quỹ còn lại
+              </Text>
+              <Text
+                style={{
+                  fontSize: 8.5,
+                  fontWeight: 700,
+                  color: remaining < 0 ? C.red : C.green,
+                }}
+              >
+                {fmtCurrency(Math.round(remaining))}
+              </Text>
+            </View>
+            {settlement.perPersonReturn > 0 && (
+              <View style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5, color: C.textMuted }}>
+                  Hoàn mỗi người ({meta.memberCount} người)
+                </Text>
+                <Text style={{ fontSize: 8.5, color: C.green }}>
+                  {fmtCurrency(Math.round(settlement.perPersonReturn))}
+                </Text>
+              </View>
+            )}
+            {settlement.perPersonOwes > 0 && (
+              <View style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5, color: C.textMuted }}>
+                  Mỗi người đóng thêm ({meta.memberCount} người)
+                </Text>
+                <Text style={{ fontSize: 8.5, color: C.red }}>
+                  {fmtCurrency(Math.round(settlement.perPersonOwes))}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Who receives money */}
+          {(settlement.reimburseToMembers.length > 0 ||
+            settlement.refundToNonParticipants.length > 0 ||
+            settlement.perPersonReturn > 0) && (
+            <>
+              <Text
+                style={[styles.sectionTitle, { fontSize: 9, marginTop: 6 }]}
+              >
+                📌 Ai nhận tiền từ quỹ
+              </Text>
+              <View style={styles.table}>
+                <View style={styles.colHeader}>
+                  <Text style={[styles.colHeaderCell, { flex: 2 }]}>
+                    Người nhận
+                  </Text>
+                  <Text style={[styles.colHeaderCell, { flex: 2 }]}>Lý do</Text>
+                  <Text
+                    style={[
+                      styles.colHeaderCell,
+                      { flex: 1, textAlign: "right" },
+                    ]}
+                  >
+                    Số tiền
+                  </Text>
+                </View>
+                {settlement.reimburseToMembers.map((r) => (
+                  <View key={`r-${r.uid}`} style={styles.balanceRow}>
+                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
+                      {r.name}
+                    </Text>
                     <Text
-                      style={{
-                        fontSize: 8.5,
-                        fontWeight: 700,
-                        color: b.net > 0 ? C.green : C.red,
-                      }}
+                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
                     >
-                      {b.net > 0 ? "+" : ""}
-                      {fmtCurrency(Math.round(b.net))}
+                      Trả hộ
+                    </Text>
+                    <Text
+                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
+                    >
+                      {fmtCurrency(Math.round(r.amount))}
                     </Text>
                   </View>
                 ))}
-            </View>
-          </View>
-        )}
-
-        {/* Debt settlements */}
-        {debts.length > 0 && (
-          <View wrap={false}>
-            <Text style={styles.sectionTitle}>Ai trả ai?</Text>
-            <View style={styles.table}>
-              {debts.map((d, i) => (
-                <View
-                  key={`${d.fromUid}-${d.toUid}-${i}`}
-                  style={styles.debtRow}
-                >
-                  <Text style={{ fontSize: 8.5, flex: 1 }}>
-                    {d.fromName} → {d.toName}
-                  </Text>
-                  <Text
-                    style={{ fontSize: 8.5, fontWeight: 700, color: C.red }}
-                  >
-                    {fmtCurrency(Math.round(d.amount))}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
+                {settlement.refundToNonParticipants.map((r) => (
+                  <View key={`f-${r.uid}`} style={styles.balanceRow}>
+                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
+                      {r.name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
+                    >
+                      Không tham gia
+                    </Text>
+                    <Text
+                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
+                    >
+                      {fmtCurrency(Math.round(r.amount))}
+                    </Text>
+                  </View>
+                ))}
+                {settlement.perPersonReturn > 0 && (
+                  <View style={styles.balanceRow}>
+                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
+                      Tất cả ({meta.memberCount} người)
+                    </Text>
+                    <Text
+                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
+                    >
+                      Hoàn quỹ dư
+                    </Text>
+                    <Text
+                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
+                    >
+                      {fmtCurrency(Math.round(settlement.perPersonReturn))}/ng
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </View>
 
         {/* Footer */}
         <View style={styles.footer} fixed>

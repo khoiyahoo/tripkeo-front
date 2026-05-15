@@ -19,9 +19,19 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 import type {
   CreateExpenseInput,
   ExpensePaidByType,
+  ExpenseWithId,
   TripMemberInfo,
 } from "@/types/firestore";
 import type { ExpenseCategory } from "@/types/trip";
+
+// Convert Firestore Timestamp or string → YYYY-MM-DD for <input type="date">
+const toDateInputStr = (ts: unknown): string => {
+  if (ts && typeof (ts as { toDate: () => Date }).toDate === "function") {
+    return (ts as { toDate: () => Date }).toDate().toISOString().split("T")[0];
+  }
+  if (typeof ts === "string") return ts;
+  return new Date().toISOString().split("T")[0];
+};
 
 const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: "food", label: "Ăn uống" },
@@ -35,30 +45,48 @@ const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
 
 interface AddExpenseFormProps {
   members: Record<string, TripMemberInfo>;
+  /** Pre-fill for edit mode. When provided, title and submit text change. */
+  initialData?: ExpenseWithId;
   onSubmit: (input: CreateExpenseInput) => Promise<unknown>;
   onCancel: () => void;
 }
 
 export const AddExpenseForm = ({
   members,
+  initialData,
   onSubmit,
   onCancel,
 }: AddExpenseFormProps) => {
-  const [description, setDescription] = useState("");
-  const [amountRaw, setAmountRaw] = useState("");
-  const [category, setCategory] = useState<ExpenseCategory>("food");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [paidByType, setPaidByType] = useState<ExpensePaidByType>("group_fund");
-  const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [note, setNote] = useState("");
+  const isEditMode = !!initialData;
+  const [description, setDescription] = useState(
+    initialData?.description ?? ""
+  );
+  const [amountRaw, setAmountRaw] = useState(
+    initialData ? String(initialData.amount) : ""
+  );
+  const [category, setCategory] = useState<ExpenseCategory>(
+    initialData?.category ?? "food"
+  );
+  const [date, setDate] = useState(
+    initialData
+      ? toDateInputStr(initialData.date)
+      : new Date().toISOString().split("T")[0]
+  );
+  const [paidByType, setPaidByType] = useState<ExpensePaidByType>(
+    initialData?.paidBy.type ?? "group_fund"
+  );
+  const [selectedMemberId, setSelectedMemberId] = useState(
+    initialData?.paidBy.userId ?? ""
+  );
+  const [note, setNote] = useState(initialData?.note ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const memberIds = Object.keys(members);
-  const [splitBetween, setSplitBetween] = useState<string[]>(memberIds);
+  const [splitBetween, setSplitBetween] = useState<string[]>(
+    initialData?.splitBetween ?? memberIds
+  );
 
-  const needsMemberSelect =
-    paidByType === "member_shared" || paidByType === "member_personal";
-  const showSplitSection = paidByType !== "member_personal";
+  const needsMemberSelect = paidByType === "member_shared";
 
   const toggleMember = (uid: string) => {
     setSplitBetween((prev) =>
@@ -85,8 +113,7 @@ export const AddExpenseForm = ({
             displayName: members[selectedMemberId]?.displayName ?? "",
           };
 
-    const finalSplit =
-      paidByType === "member_personal" ? [selectedMemberId] : splitBetween;
+    const finalSplit = splitBetween;
 
     await onSubmit({
       description: description.trim(),
@@ -106,7 +133,7 @@ export const AddExpenseForm = ({
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between">
           <h4 className="font-semibold text-on-surface text-sm">
-            Thêm chi phí
+            {isEditMode ? "Chỉnh sửa chi phí" : "Thêm chi phí"}
           </h4>
           <Button
             variant="ghost"
@@ -195,24 +222,13 @@ export const AddExpenseForm = ({
                 🤝 Thành viên trả hộ
               </Label>
             </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem value="member_personal" id="pbt-personal" />
-              <Label
-                htmlFor="pbt-personal"
-                className="cursor-pointer font-normal"
-              >
-                👤 Cá nhân
-              </Label>
-            </div>
           </RadioGroup>
         </div>
 
-        {/* Member select (for member_shared / member_personal) */}
+        {/* Member select (for member_shared) */}
         {needsMemberSelect && (
           <div>
-            <Label>
-              {paidByType === "member_shared" ? "Ai trả hộ?" : "Ai chi?"}
-            </Label>
+            <Label>Ai trả hộ?</Label>
             <Select
               value={selectedMemberId}
               onValueChange={setSelectedMemberId}
@@ -231,32 +247,30 @@ export const AddExpenseForm = ({
           </div>
         )}
 
-        {/* Split between (checkboxes) — hidden for personal */}
-        {showSplitSection && (
-          <div>
-            <Label>Chia cho (bỏ check nếu không tham gia):</Label>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {memberIds.map((uid) => (
-                // biome-ignore lint/a11y/noLabelWithoutControl: <explanation>
-                <label
-                  key={uid}
-                  className="flex cursor-pointer items-center gap-1.5"
-                >
-                  <Checkbox
-                    checked={splitBetween.includes(uid)}
-                    onCheckedChange={() => toggleMember(uid)}
-                  />
-                  <span className="text-on-surface text-sm">
-                    {members[uid]?.displayName ?? uid}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="mt-1 text-on-surface-variant text-xs">
-              {splitBetween.length}/{memberIds.length} thành viên
-            </p>
+        {/* Split between (checkboxes) */}
+        <div>
+          <Label>Chia cho (bỏ check nếu không tham gia):</Label>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {memberIds.map((uid) => (
+              // biome-ignore lint/a11y/noLabelWithoutControl: <explanation>
+              <label
+                key={uid}
+                className="flex cursor-pointer items-center gap-1.5"
+              >
+                <Checkbox
+                  checked={splitBetween.includes(uid)}
+                  onCheckedChange={() => toggleMember(uid)}
+                />
+                <span className="text-on-surface text-sm">
+                  {members[uid]?.displayName ?? uid}
+                </span>
+              </label>
+            ))}
           </div>
-        )}
+          <p className="mt-1 text-on-surface-variant text-xs">
+            {splitBetween.length}/{memberIds.length} thành viên
+          </p>
+        </div>
 
         {/* Note */}
         <div>
@@ -269,18 +283,13 @@ export const AddExpenseForm = ({
           />
         </div>
 
-        {/* Helper text */}
-        <p className="text-on-surface-variant text-xs italic">
-          ℹ️ Nếu bill có phần cá nhân, tách thành 2 chi phí riêng
-        </p>
-
         <Button
           onClick={handleSubmit}
           disabled={
             !description.trim() ||
             !amountRaw ||
             (needsMemberSelect && !selectedMemberId) ||
-            (showSplitSection && splitBetween.length === 0) ||
+            splitBetween.length === 0 ||
             isSubmitting
           }
           className="w-full"
@@ -289,7 +298,7 @@ export const AddExpenseForm = ({
           {isSubmitting && (
             <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
           )}
-          Thêm chi phí
+          {isEditMode ? "Lưu thay đổi" : "Thêm chi phí"}
         </Button>
       </CardContent>
     </Card>

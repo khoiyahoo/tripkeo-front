@@ -70,12 +70,11 @@ const TripDetailPage = () => {
   } = useItinerary(tripId);
   const {
     expenses,
-    totalSpent,
-    balances,
-    debts,
+    settlement,
     budgetStatus,
     isLoading: isExpensesLoading,
     handleAddExpense,
+    handleUpdateExpense,
     handleDeleteExpense,
   } = useExpenses(tripId, trip?.members ?? {}, trip?.budget ?? 0);
   const {
@@ -322,15 +321,14 @@ const TripDetailPage = () => {
                 tripId={tripId}
                 tripName={trip.name}
                 expenses={expenses}
-                debts={debts}
-                balances={balances}
+                settlement={settlement}
                 members={trip.members}
                 budget={trip.budget}
-                totalSpent={totalSpent}
                 budgetStatus={budgetStatus}
                 isLoading={isExpensesLoading}
                 currentUserRole={currentUserRole}
                 onAddExpense={handleAddExpense}
+                onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
               />
             </TabsContent>

@@ -1,5 +1,5 @@
 import { PDFViewer, pdf } from "@react-pdf/renderer";
-import { Download, Eye, Loader2, Share2 } from "lucide-react";
+import { Download, Eye, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,14 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { SettlementResult } from "@/services/expenseService";
 import type { ExpensePdfMeta } from "@/utils/expensePdf";
 import { ExpensePdfDocument } from "@/utils/expensePdf";
 
-import type {
-  DebtSettlement,
-  ExpenseWithId,
-  MemberBalance,
-} from "@/types/firestore";
+import type { ExpenseWithId } from "@/types/firestore";
 
 export type { ExpensePdfMeta };
 
@@ -25,18 +22,16 @@ interface ExpensesPdfExportProps {
   meta: ExpensePdfMeta;
   expenses: ExpenseWithId[];
   budget: number;
-  totalSpent: number;
-  balances: MemberBalance[];
-  debts: DebtSettlement[];
+  totalGroupSpent: number;
+  settlement: SettlementResult;
 }
 
 export const ExpensesPdfExport = ({
   meta,
   expenses,
   budget,
-  totalSpent,
-  balances,
-  debts,
+  totalGroupSpent,
+  settlement,
 }: ExpensesPdfExportProps) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -59,9 +54,8 @@ export const ExpensesPdfExport = ({
         meta={meta}
         expenses={expenses}
         budget={budget}
-        totalSpent={totalSpent}
-        balances={balances}
-        debts={debts}
+        totalGroupSpent={totalGroupSpent}
+        settlement={settlement}
       />
     ).toBlob();
 
@@ -81,41 +75,6 @@ export const ExpensesPdfExport = ({
       toast.success("Đã tải PDF thành công");
     } catch {
       toast.error("Không thể tạo PDF. Vui lòng thử lại.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleShare = async () => {
-    if (guardEmpty()) return;
-    setIsGenerating(true);
-    try {
-      const blob = await getBlob();
-      const file = new File([blob], fileName, { type: "application/pdf" });
-      if (
-        typeof navigator.share === "function" &&
-        navigator.canShare?.({ files: [file] })
-      ) {
-        await navigator.share({
-          files: [file],
-          title: meta.title,
-          text: `Chi phí chuyến đi ${meta.title}`,
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.info("PDF đã được tải về – bạn có thể chia sẻ file này");
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        toast.error("Không thể chia sẻ PDF. Vui lòng thử lại.");
-      }
     } finally {
       setIsGenerating(false);
     }
@@ -150,20 +109,6 @@ export const ExpensesPdfExport = ({
           )}
           Tải PDF
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleShare}
-          disabled={isGenerating}
-          className="gap-1.5"
-        >
-          {isGenerating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Share2 className="h-3.5 w-3.5" />
-          )}
-          Chia sẻ
-        </Button>
       </div>
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
@@ -195,9 +140,8 @@ export const ExpensesPdfExport = ({
                   meta={meta}
                   expenses={expenses}
                   budget={budget}
-                  totalSpent={totalSpent}
-                  balances={balances}
-                  debts={debts}
+                  totalGroupSpent={totalGroupSpent}
+                  settlement={settlement}
                 />
               </PDFViewer>
             )}

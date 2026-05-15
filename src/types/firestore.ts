@@ -57,10 +57,7 @@ export interface ActivityDoc {
 }
 
 // ─── Expense (subcollection: trips/{tripId}/expenses) ────────
-export type ExpensePaidByType =
-  | "group_fund"
-  | "member_shared"
-  | "member_personal";
+export type ExpensePaidByType = "group_fund" | "member_shared";
 
 export interface ExpensePaidBy {
   type: ExpensePaidByType;
@@ -75,6 +72,8 @@ export interface ExpenseDoc {
   date: Timestamp;
   paidBy: ExpensePaidBy;
   splitBetween: string[]; // uid[] of participants
+  totalMembers: number;
+  affectsGroupFund: boolean;
   note?: string;
   createdBy: string;
   createdAt: Timestamp;
