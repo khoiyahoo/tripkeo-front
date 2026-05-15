@@ -13,7 +13,7 @@ export interface UserProfileDoc {
 }
 
 // ─── Trip ────────────────────────────────────────────────────
-export type TripRole = "owner" | "treasurer" | "editor" | "viewer";
+export type TripRole = "owner" | "editor" | "treasurer" | "member";
 
 export interface TripMemberInfo {
   role: TripRole;
@@ -57,8 +57,13 @@ export interface ActivityDoc {
 }
 
 // ─── Expense (subcollection: trips/{tripId}/expenses) ────────
+export type ExpensePaidByType =
+  | "group_fund"
+  | "member_shared"
+  | "member_personal";
+
 export interface ExpensePaidBy {
-  type: "group_fund" | "member";
+  type: ExpensePaidByType;
   userId: string | null;
   displayName: string;
 }
@@ -69,18 +74,17 @@ export interface ExpenseDoc {
   category: ExpenseCategory;
   date: Timestamp;
   paidBy: ExpensePaidBy;
-  splitType: "equal" | "custom";
-  splitAmong: Record<string, number>; // uid → amount owed
+  splitBetween: string[]; // uid[] of participants
   note?: string;
-  receiptUrl?: string;
   createdBy: string;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 // ─── Invitation (subcollection: trips/{tripId}/invitations) ──
 export interface InvitationDoc {
   email: string;
-  role: "treasurer" | "editor" | "viewer";
+  role: "editor" | "treasurer" | "member";
   inviteCode: string;
   status: "pending" | "accepted" | "declined";
   invitedBy: string;
@@ -117,7 +121,7 @@ export interface InvitationWithId extends InvitationDoc {
 // ─── Form input types ────────────────────────────────────────
 export interface InvitedMember {
   email: string;
-  role: "treasurer" | "editor" | "viewer";
+  role: "editor" | "treasurer" | "member";
 }
 
 export interface CreateTripInput {
@@ -151,14 +155,13 @@ export interface CreateExpenseInput {
   category: ExpenseCategory;
   date: string; // YYYY-MM-DD
   paidBy: ExpensePaidBy;
-  splitType: "equal" | "custom";
-  splitAmong: Record<string, number>;
+  splitBetween: string[]; // uid[] of participants
   note?: string;
 }
 
 export interface InviteMemberInput {
   email: string;
-  role: "treasurer" | "editor" | "viewer";
+  role: "editor" | "treasurer" | "member";
 }
 
 // ─── Balance calculation types ───────────────────────────────

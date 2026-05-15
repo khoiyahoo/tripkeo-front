@@ -44,16 +44,16 @@ import type {
 
 const ROLE_LABELS: Record<TripRole, string> = {
   owner: "Chủ sở hữu",
-  treasurer: "Thủ quỹ",
   editor: "Biên tập",
-  viewer: "Xem",
+  treasurer: "Thủ quỹ",
+  member: "Thành viên",
 };
 
 const ROLE_COLORS: Record<TripRole, string> = {
   owner: "bg-tertiary-50 text-tertiary-700",
-  treasurer: "bg-emerald-50 text-emerald-700",
   editor: "bg-primary-50 text-primary-700",
-  viewer: "bg-surface-dim text-on-surface-variant",
+  treasurer: "bg-emerald-50 text-emerald-700",
+  member: "bg-surface-dim text-on-surface-variant",
 };
 
 interface MembersTabProps {
@@ -67,7 +67,7 @@ interface MembersTabProps {
   onUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   onCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   onCreateShareLink: (
-    role: "treasurer" | "editor" | "viewer"
+    role: "editor" | "treasurer" | "member"
   ) => Promise<string>;
 }
 
@@ -86,7 +86,7 @@ export const MembersTab = ({
   const [isInviting, setIsInviting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<
-    "treasurer" | "editor" | "viewer"
+    "editor" | "treasurer" | "member"
   >("editor");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -281,20 +281,19 @@ export const MembersTab = ({
         </DialogContent>
       </Dialog>
 
-      {/* Viewer read-only banner */}
-      {currentUserRole === "viewer" && (
+      {/* Non-owner read-only banner */}
+      {currentUserRole && currentUserRole !== "owner" && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
           <Eye className="h-4 w-4 shrink-0" />
           <span>
-            Bạn chỉ có quyền xem chuyến đi này.
+            Chỉ chủ sở hữu mới quản lý được thành viên.
             {ownerName ? (
               <>
                 {" "}
-                Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
-                sửa.
+                Liên hệ <strong>{ownerName}</strong> nếu cần thay đổi.
               </>
             ) : (
-              " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+              " Liên hệ chủ chuyến đi nếu cần thay đổi."
             )}
           </span>
         </div>
@@ -347,7 +346,7 @@ export const MembersTab = ({
               <Select
                 value={inviteRole}
                 onValueChange={(v) => {
-                  setInviteRole(v as "treasurer" | "editor" | "viewer");
+                  setInviteRole(v as "editor" | "treasurer" | "member");
                   setShareLink(null);
                 }}
               >
@@ -355,13 +354,13 @@ export const MembersTab = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="treasurer">
-                    Thủ quỹ (quản lý chi phí)
-                  </SelectItem>
                   <SelectItem value="editor">
                     Biên tập (thêm/sửa lịch trình)
                   </SelectItem>
-                  <SelectItem value="viewer">Xem (chỉ đọc)</SelectItem>
+                  <SelectItem value="treasurer">
+                    Thủ quỹ (quản lý chi phí)
+                  </SelectItem>
+                  <SelectItem value="member">Thành viên (chỉ xem)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -461,13 +460,15 @@ export const MembersTab = ({
                       </span>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="treasurer">
-                        Thủ quỹ — quản lý chi phí
-                      </SelectItem>
                       <SelectItem value="editor">
                         Biên tập — thêm/sửa lịch trình
                       </SelectItem>
-                      <SelectItem value="viewer">Xem — chỉ đọc</SelectItem>
+                      <SelectItem value="treasurer">
+                        Thủ quỹ — quản lý chi phí
+                      </SelectItem>
+                      <SelectItem value="member">
+                        Thành viên — chỉ xem
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (

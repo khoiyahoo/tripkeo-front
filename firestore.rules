@@ -71,14 +71,14 @@ service cloud.firestore {
 
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'editor', 'treasurer'];
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'editor'];
 
         allow update: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
           && (
             get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
             || (
-              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['editor', 'treasurer']
+              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'editor'
               && resource.data.createdBy == request.auth.uid
             )
           );
@@ -88,7 +88,7 @@ service cloud.firestore {
           && (
             get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
             || (
-              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['editor', 'treasurer']
+              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'editor'
               && resource.data.createdBy == request.auth.uid
             )
           );

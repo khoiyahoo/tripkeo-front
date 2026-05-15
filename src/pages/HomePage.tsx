@@ -86,7 +86,7 @@ const InviteCard = ({
     tripName: string;
     destination: string;
     invitedByName: string;
-    role: "treasurer" | "editor" | "viewer";
+    role: "treasurer" | "editor" | "member";
   };
   onAccept: () => void;
   onDecline: () => void;

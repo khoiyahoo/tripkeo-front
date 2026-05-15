@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  type BudgetStatus,
   calculateBalances,
   calculateDebts,
   createExpense,
   deleteExpense,
+  getBudgetStatus,
   subscribeToExpenses,
   updateExpense,
 } from "@/services/expenseService";
@@ -21,6 +23,7 @@ import type {
 interface UseExpensesResult {
   expenses: ExpenseWithId[];
   totalSpent: number;
+  budgetStatus: BudgetStatus;
   balances: MemberBalance[];
   debts: DebtSettlement[];
   isLoading: boolean;
@@ -35,7 +38,8 @@ interface UseExpensesResult {
 
 export const useExpenses = (
   tripId: string,
-  members: Record<string, TripMemberInfo>
+  members: Record<string, TripMemberInfo>,
+  budget: number
 ): UseExpensesResult => {
   const user = useAuthStore((s) => s.user);
   const [expenses, setExpenses] = useState<ExpenseWithId[]>([]);
@@ -70,9 +74,16 @@ export const useExpenses = (
     [expenses]
   );
 
+  const memberCount = Object.keys(members).length;
+
+  const budgetStatus = useMemo(
+    () => getBudgetStatus(expenses, budget, memberCount),
+    [expenses, budget, memberCount]
+  );
+
   const balances = useMemo(
-    () => calculateBalances(expenses, members),
-    [expenses, members]
+    () => calculateBalances(expenses, members, budget),
+    [expenses, members, budget]
   );
 
   const debts = useMemo(() => calculateDebts(balances), [balances]);
@@ -102,6 +113,7 @@ export const useExpenses = (
   return {
     expenses,
     totalSpent,
+    budgetStatus,
     balances,
     debts,
     isLoading,

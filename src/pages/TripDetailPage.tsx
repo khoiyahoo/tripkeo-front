@@ -73,10 +73,11 @@ const TripDetailPage = () => {
     totalSpent,
     balances,
     debts,
+    budgetStatus,
     isLoading: isExpensesLoading,
     handleAddExpense,
     handleDeleteExpense,
-  } = useExpenses(tripId, trip?.members ?? {});
+  } = useExpenses(tripId, trip?.members ?? {}, trip?.budget ?? 0);
   const {
     handleInviteMember,
     handleRemoveMember,
@@ -326,6 +327,7 @@ const TripDetailPage = () => {
                 members={trip.members}
                 budget={trip.budget}
                 totalSpent={totalSpent}
+                budgetStatus={budgetStatus}
                 isLoading={isExpensesLoading}
                 currentUserRole={currentUserRole}
                 onAddExpense={handleAddExpense}

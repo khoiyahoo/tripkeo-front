@@ -54,10 +54,9 @@ export interface Expense {
   amount: number;
   paidBy: string;
   paidById: string;
-  splitAmong: string[];
+  splitBetween: string[];
   category: ExpenseCategory;
   date: string;
-  receiptUrl?: string;
 }
 
 export interface DebtRecord {

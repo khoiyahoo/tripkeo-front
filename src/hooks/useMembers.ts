@@ -26,7 +26,7 @@ interface UseInvitationsResult {
   handleAcceptInvitation: (
     tripId: string,
     invitationId: string,
-    role: "treasurer" | "editor" | "viewer"
+    role: "treasurer" | "editor" | "member"
   ) => Promise<void>;
   handleDeclineInvitation: (
     tripId: string,
@@ -67,7 +67,7 @@ export const useInvitations = (): UseInvitationsResult => {
     async (
       tripId: string,
       invitationId: string,
-      role: "treasurer" | "editor" | "viewer"
+      role: "treasurer" | "editor" | "member"
     ) => {
       if (!user) throw new Error("Not authenticated");
       await acceptInvitation(
@@ -105,7 +105,7 @@ interface UseTripMembersResult {
   handleUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   handleCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   handleCreateShareLink: (
-    role: "treasurer" | "editor" | "viewer"
+    role: "treasurer" | "editor" | "member"
   ) => Promise<string>;
 }
 
@@ -171,7 +171,7 @@ export const useTripMembers = (
   );
 
   const handleCreateShareLink = useCallback(
-    (role: "treasurer" | "editor" | "viewer"): Promise<string> => {
+    (role: "treasurer" | "editor" | "member"): Promise<string> => {
       if (!user) throw new Error("Not authenticated");
       return createShareLinkInvitation(
         tripId,

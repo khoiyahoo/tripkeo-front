@@ -120,7 +120,7 @@ const InvitePage = () => {
     if (action === "accept") handleAccept();
     else handleDecline();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, invitation, pendingAction]);
+  }, [user, invitation, pendingAction, handleAccept, handleDecline]);
 
   if (isLoading) {
     return (
@@ -170,7 +170,11 @@ const InvitePage = () => {
             </div>
           )}
           <div className="inline-block rounded-full bg-primary-100 px-3 py-1 text-primary-800 text-sm">
-            {invitation.role === "editor" ? "Chỉnh sửa" : "Xem"}
+            {invitation.role === "editor"
+              ? "Biên tập"
+              : invitation.role === "treasurer"
+                ? "Thủ quỹ"
+                : "Thành viên"}
           </div>
         </div>
 

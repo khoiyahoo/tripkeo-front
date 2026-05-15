@@ -44,8 +44,7 @@ export const createExpense = async (
     category: input.category,
     date: Timestamp.fromDate(new Date(input.date)),
     paidBy: input.paidBy,
-    splitType: input.splitType,
-    splitAmong: input.splitAmong,
+    splitBetween: input.splitBetween,
     note: input.note ?? "",
     createdBy: userId,
     createdAt: serverTimestamp(),
@@ -66,11 +65,12 @@ export const updateExpense = async (
   if (data.amount !== undefined) updateData.amount = data.amount;
   if (data.category !== undefined) updateData.category = data.category;
   if (data.paidBy !== undefined) updateData.paidBy = data.paidBy;
-  if (data.splitType !== undefined) updateData.splitType = data.splitType;
-  if (data.splitAmong !== undefined) updateData.splitAmong = data.splitAmong;
+  if (data.splitBetween !== undefined)
+    updateData.splitBetween = data.splitBetween;
   if (data.note !== undefined) updateData.note = data.note;
   if (data.date !== undefined)
     updateData.date = Timestamp.fromDate(new Date(data.date));
+  updateData.updatedAt = serverTimestamp();
 
   await updateDoc(doc(db, "trips", tripId, "expenses", expenseId), updateData);
 };
@@ -103,50 +103,113 @@ export const subscribeToExpenses = (
 
 // ─── Balance calculation ─────────────────────────────────────
 
+/**
+ * Calculate balances per the spec:
+ * - Everyone contributed `budgetTotal / memberCount` upfront
+ * - group_fund: deducted from group budget, split among participants
+ * - member_shared: member paid out-of-pocket, split among participants
+ * - member_personal: member paid for themselves only
+ * - net positive = get refund, net negative = owe more
+ */
 export const calculateBalances = (
   expenses: ExpenseWithId[],
-  members: Record<string, TripMemberInfo>
+  members: Record<string, TripMemberInfo>,
+  budgetTotal: number
 ): MemberBalance[] => {
-  const balanceMap: Record<string, { totalPaid: number; totalOwed: number }> =
-    {};
+  const memberIds = Object.keys(members);
+  const memberCount = memberIds.length;
+  const perPerson = memberCount > 0 ? budgetTotal / memberCount : 0;
 
-  // Initialize all members
-  for (const uid of Object.keys(members)) {
-    balanceMap[uid] = { totalPaid: 0, totalOwed: 0 };
+  const paid: Record<string, number> = {};
+  const owed: Record<string, number> = {};
+
+  // Everyone contributed equally upfront
+  for (const uid of memberIds) {
+    paid[uid] = perPerson;
+    owed[uid] = 0;
   }
 
-  // Calculate from expenses
-  for (const expense of expenses) {
-    const paidBy =
-      typeof expense.paidBy === "string"
-        ? { type: "member" as const, userId: expense.paidBy, displayName: "" }
-        : expense.paidBy;
+  for (const exp of expenses) {
+    const paidByType = exp.paidBy?.type ?? "group_fund";
+    const payerId = exp.paidBy?.userId;
 
-    // group_fund expenses: no individual balance change
-    if (paidBy.type === "group_fund") continue;
-
-    // member-paid: add to payer's totalPaid
-    const payerId = paidBy.userId;
-    if (payerId && balanceMap[payerId]) {
-      balanceMap[payerId].totalPaid += expense.amount;
+    // Personal: only payer bears cost
+    if (paidByType === "member_personal") {
+      if (payerId && paid[payerId] !== undefined) {
+        paid[payerId] += exp.amount;
+        owed[payerId] += exp.amount;
+      }
+      continue;
     }
 
-    // Add to each person's totalOwed
-    for (const [uid, amount] of Object.entries(expense.splitAmong)) {
-      if (balanceMap[uid]) {
-        balanceMap[uid].totalOwed += amount;
+    // Member shared: credit the out-of-pocket payer
+    if (
+      paidByType === "member_shared" &&
+      payerId &&
+      paid[payerId] !== undefined
+    ) {
+      paid[payerId] += exp.amount;
+    }
+
+    // Split cost among participants (group_fund + member_shared)
+    const participants = exp.splitBetween ?? [];
+    const share =
+      participants.length > 0 ? exp.amount / participants.length : 0;
+    for (const uid of participants) {
+      if (owed[uid] !== undefined) {
+        owed[uid] += share;
       }
     }
   }
 
-  return Object.entries(balanceMap).map(([uid, { totalPaid, totalOwed }]) => ({
+  return memberIds.map((uid) => ({
     uid,
     displayName: members[uid]?.displayName ?? "Unknown",
     photoURL: members[uid]?.photoURL ?? "",
-    totalPaid,
-    totalOwed,
-    net: totalPaid - totalOwed,
+    totalPaid: paid[uid] ?? 0,
+    totalOwed: owed[uid] ?? 0,
+    net: (paid[uid] ?? 0) - (owed[uid] ?? 0),
   }));
+};
+
+/**
+ * Budget status: how much spent from group fund, remaining, and per-person
+ * collection amount if over budget.
+ */
+export interface BudgetStatus {
+  totalGroupSpent: number;
+  remaining: number;
+  percentUsed: number;
+  isOverBudget: boolean;
+  isWarning: boolean; // > 80%
+  collectMore: number; // per person, if over budget
+}
+
+export const getBudgetStatus = (
+  expenses: ExpenseWithId[],
+  budgetTotal: number,
+  memberCount: number
+): BudgetStatus => {
+  const totalGroupSpent = expenses
+    .filter((e) => e.paidBy?.type !== "member_personal")
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const remaining = budgetTotal - totalGroupSpent;
+  const percentUsed =
+    budgetTotal > 0 ? (totalGroupSpent / budgetTotal) * 100 : 0;
+  const isOverBudget = remaining < 0;
+  const isWarning = percentUsed >= 80 && !isOverBudget;
+  const collectMore =
+    isOverBudget && memberCount > 0 ? Math.abs(remaining) / memberCount : 0;
+
+  return {
+    totalGroupSpent,
+    remaining,
+    percentUsed,
+    isOverBudget,
+    isWarning,
+    collectMore,
+  };
 };
 
 export const calculateDebts = (balances: MemberBalance[]): DebtSettlement[] => {

@@ -99,7 +99,7 @@ const CreateTripPage = () => {
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
-  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
+  const [inviteRole, setInviteRole] = useState<"editor" | "member">("editor");
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -420,12 +420,12 @@ const CreateTripPage = () => {
                     <select
                       value={inviteRole}
                       onChange={(e) =>
-                        setInviteRole(e.target.value as "editor" | "viewer")
+                        setInviteRole(e.target.value as "editor" | "member")
                       }
                       className="h-[42px] rounded-md border border-input bg-background px-3 text-sm"
                     >
-                      <option value="editor">Editor</option>
-                      <option value="viewer">Viewer</option>
+                      <option value="editor">Biên tập</option>
+                      <option value="member">Thành viên</option>
                     </select>
                   </div>
                   {emailError && (
@@ -454,7 +454,9 @@ const CreateTripPage = () => {
                               {member.email}
                             </span>
                             <span className="rounded-full bg-surface-dim px-2 py-0.5 text-on-surface-variant text-xs">
-                              {member.role === "editor" ? "Editor" : "Viewer"}
+                              {member.role === "editor"
+                                ? "Biên tập"
+                                : "Thành viên"}
                             </span>
                           </div>
                           <button

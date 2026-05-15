@@ -881,18 +881,15 @@ export const ItineraryTab = ({
 
   const canEditActivity = useCallback(
     (activity: ActivityWithId): boolean => {
-      if (!currentUserRole || currentUserRole === "viewer") return false;
       if (currentUserRole === "owner") return true;
-      // editor and treasurer can edit their own activities
-      return activity.createdBy === currentUserId;
+      if (currentUserRole === "editor")
+        return activity.createdBy === currentUserId;
+      return false;
     },
     [currentUserRole, currentUserId]
   );
 
-  const canAdd =
-    currentUserRole === "owner" ||
-    currentUserRole === "editor" ||
-    currentUserRole === "treasurer";
+  const canAdd = currentUserRole === "owner" || currentUserRole === "editor";
 
   // Flat lookup: activityId → { date, period, activity }
   const activityMap = useMemo(() => {
@@ -991,20 +988,19 @@ export const ItineraryTab = ({
       onDragEnd={handleDragEnd}
     >
       <div className="space-y-4">
-        {/* Viewer read-only banner */}
-        {currentUserRole === "viewer" && (
+        {/* Read-only banner for member/treasurer */}
+        {(currentUserRole === "member" || currentUserRole === "treasurer") && (
           <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
             <Eye className="h-4 w-4 shrink-0" />
             <span>
-              Bạn chỉ có quyền xem chuyến đi này.
+              Bạn chỉ có quyền xem lịch trình.
               {ownerName ? (
                 <>
                   {" "}
-                  Liên hệ <strong>{ownerName}</strong> để được cấp quyền chỉnh
-                  sửa.
+                  Liên hệ <strong>{ownerName}</strong> nếu cần thay đổi.
                 </>
               ) : (
-                " Liên hệ chủ chuyến đi để được cấp quyền chỉnh sửa."
+                " Liên hệ chủ chuyến đi nếu cần thay đổi."
               )}
             </span>
           </div>
