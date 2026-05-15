@@ -26,7 +26,11 @@ import {
   useEditTrip,
 } from "@/hooks/useEditTrip";
 import { cn } from "@/lib/utils";
-import { timestampToDateStr } from "@/utils/format";
+import {
+  formatCurrencyInput,
+  parseCurrencyInput,
+  timestampToDateStr,
+} from "@/utils/format";
 
 import type {
   ActivityWithId,
@@ -52,6 +56,12 @@ const CURRENCIES = [
   { value: "THB", label: "THB (฿)" },
   { value: "SGD", label: "SGD (S$)" },
 ];
+
+const getTodayDateStr = (): string => {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().split("T")[0];
+};
 
 // ─── Types ────────────────────────────────────────────────────
 interface EditTripDialogProps {
@@ -79,6 +89,7 @@ export const EditTripDialog = ({
   activities,
 }: EditTripDialogProps) => {
   const { handleSave } = useEditTrip();
+  const todayDateStr = getTodayDateStr();
   const [isSaving, setIsSaving] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
   const [isWarningOpen, setIsWarningOpen] = useState(false);
@@ -97,7 +108,7 @@ export const EditTripDialog = ({
     coverImage: trip.coverImage,
     startDate: oldStartStr,
     endDate: oldEndStr,
-    budget: trip.budget ? String(trip.budget) : "",
+    budget: trip.budget ? formatCurrencyInput(String(trip.budget)) : "",
     currency: trip.currency,
   });
 
@@ -110,7 +121,7 @@ export const EditTripDialog = ({
         coverImage: trip.coverImage,
         startDate: oldStartStr,
         endDate: oldEndStr,
-        budget: trip.budget ? String(trip.budget) : "",
+        budget: trip.budget ? formatCurrencyInput(String(trip.budget)) : "",
         currency: trip.currency,
       });
       setDateError(null);
@@ -150,8 +161,12 @@ export const EditTripDialog = ({
 
   const handleSubmit = async () => {
     if (!isValid) return;
+    if (formData.startDate < todayDateStr) {
+      setDateError("Ngày bắt đầu không thể trong quá khứ");
+      return;
+    }
     if (formData.startDate > formData.endDate) {
-      setDateError("Ngày kết thúc phải sau ngày bắt đầu");
+      setDateError("Ngày kết thúc không thể trước ngày bắt đầu");
       return;
     }
 
@@ -161,7 +176,7 @@ export const EditTripDialog = ({
       coverImage: formData.coverImage,
       startDate: formData.startDate,
       endDate: formData.endDate,
-      budget: Number(formData.budget) || 0,
+      budget: Number(parseCurrencyInput(formData.budget)) || 0,
       currency: formData.currency,
     };
 
@@ -290,8 +305,17 @@ export const EditTripDialog = ({
                       id="edit-startDate"
                       type="date"
                       className="pl-9"
+                      min={todayDateStr}
                       value={formData.startDate}
-                      onChange={(e) => updateField("startDate", e.target.value)}
+                      onChange={(e) => {
+                        updateField("startDate", e.target.value);
+                        if (
+                          formData.endDate &&
+                          e.target.value > formData.endDate
+                        ) {
+                          updateField("endDate", "");
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -303,6 +327,7 @@ export const EditTripDialog = ({
                       id="edit-endDate"
                       type="date"
                       className="pl-9"
+                      min={formData.startDate || undefined}
                       value={formData.endDate}
                       onChange={(e) => updateField("endDate", e.target.value)}
                     />
@@ -321,12 +346,16 @@ export const EditTripDialog = ({
                     <Wallet className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
                     <Input
                       id="edit-budget"
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       min="0"
-                      placeholder="0"
+                      placeholder="10.000.000"
                       className="pl-9"
                       value={formData.budget}
-                      onChange={(e) => updateField("budget", e.target.value)}
+                      onChange={(e) => {
+                        const raw = parseCurrencyInput(e.target.value);
+                        updateField("budget", formatCurrencyInput(raw));
+                      }}
                     />
                   </div>
                 </div>

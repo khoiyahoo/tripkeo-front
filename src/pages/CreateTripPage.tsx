@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
 import { cn } from "@/lib/utils";
+import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 
 import type { CreateTripInput, InvitedMember } from "@/types/firestore";
 
@@ -90,7 +91,14 @@ interface FormData {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const getTodayDateStr = (): string => {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().split("T")[0];
+};
+
 const CreateTripPage = () => {
+  const todayDateStr = getTodayDateStr();
   const navigate = useNavigate();
   const { handleCreateTrip } = useTrips();
   const [currentStep, setCurrentStep] = useState(1);
@@ -124,9 +132,13 @@ const CreateTripPage = () => {
   };
 
   const validateDates = (): boolean => {
+    if (formData.startDate && formData.startDate < todayDateStr) {
+      setDateError("Ngày bắt đầu không thể trong quá khứ");
+      return false;
+    }
     if (!formData.startDate || !formData.endDate) return true;
     if (formData.startDate > formData.endDate) {
-      setDateError("Ngày kết thúc phải sau ngày bắt đầu");
+      setDateError("Ngày kết thúc không thể trước ngày bắt đầu");
       return false;
     }
     setDateError(null);
@@ -220,6 +232,7 @@ const CreateTripPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (!validateDates()) return;
     if (!isStep1Valid) return;
 
     setIsSubmitting(true);
@@ -232,7 +245,7 @@ const CreateTripPage = () => {
       startDate: formData.startDate,
       endDate: formData.endDate,
       description: formData.description.trim(),
-      budget: Number(formData.budget) || 0,
+      budget: Number(parseCurrencyInput(formData.budget)) || 0,
       currency: formData.currency,
       invitedMembers:
         formData.invitedMembers.length > 0
@@ -305,6 +318,7 @@ const CreateTripPage = () => {
                         id="startDate"
                         type="date"
                         className="pl-9"
+                        min={todayDateStr}
                         value={formData.startDate}
                         onChange={(e) => {
                           updateField("startDate", e.target.value);
@@ -312,7 +326,7 @@ const CreateTripPage = () => {
                             formData.endDate &&
                             e.target.value > formData.endDate
                           ) {
-                            updateField("endDate", e.target.value);
+                            updateField("endDate", "");
                           }
                         }}
                       />
@@ -494,11 +508,15 @@ const CreateTripPage = () => {
                     </span>
                     <Input
                       id="totalBudget"
-                      type="number"
-                      placeholder="10,000,000"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="10.000.000"
                       className="pl-7"
                       value={formData.budget}
-                      onChange={(e) => updateField("budget", e.target.value)}
+                      onChange={(e) => {
+                        const raw = parseCurrencyInput(e.target.value);
+                        updateField("budget", formatCurrencyInput(raw));
+                      }}
                     />
                   </div>
                 </div>

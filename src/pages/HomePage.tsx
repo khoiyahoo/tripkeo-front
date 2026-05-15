@@ -217,7 +217,7 @@ export default function HomePage() {
   const tripCards = trips.map(tripToCardData);
 
   const handleCreateTrip = requireAuth(() => {
-    navigate({ to: "/trips/create" });
+    navigate({ to: "/trips" });
   });
 
   const handleTripClick = (tripId: string) => {
@@ -270,7 +270,12 @@ export default function HomePage() {
               Chuyến đi của bạn
             </h2>
             {tripCards.length > 0 && (
-              <Button variant="ghost" size="sm" className="text-primary-600">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary-600"
+                onClick={() => navigate({ to: "/trips" })}
+              >
                 Xem tất cả
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>

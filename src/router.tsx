@@ -16,6 +16,7 @@ import LoginPage from "@/pages/LoginPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import TripDetailPage from "@/pages/TripDetailPage";
+import TripsPage from "@/pages/TripsPage";
 import { useAuthStore } from "@/stores/authStore";
 
 const RootComponent = () => {
@@ -60,6 +61,12 @@ const loginRoute = createRoute({
   component: LoginPage,
 });
 
+const tripsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trips",
+  component: TripsPage,
+});
+
 const createTripRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/trips/create",
@@ -99,6 +106,7 @@ const inviteRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  tripsRoute,
   createTripRoute,
   tripDetailRoute,
   profileRoute,
