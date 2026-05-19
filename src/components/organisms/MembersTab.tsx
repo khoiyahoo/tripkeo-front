@@ -258,7 +258,7 @@ export const MembersTab = ({
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       if (
-        message.includes("RESEND_API_KEY") ||
+        message.includes("VITE_BREVO_API_KEY") ||
         message.includes("send email") ||
         message.includes("Failed to send")
       ) {
