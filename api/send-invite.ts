@@ -6,7 +6,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).end();
   }
 
-  const brevoApiKey = process.env.VITE_BREVO_API_KEY;
+  const brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) {
     return res.status(500).json({
       error: "Server is missing VITE_BREVO_API_KEY",
@@ -21,8 +21,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const roleLabel =
     role === "editor" ? "Biên tập" : role === "treasurer" ? "Thủ quỹ" : "Xem";
-  const senderEmail = process.env.VITE_SENDER_EMAIL ?? "noreply@tripkeo.com";
-  const senderName = process.env.VITE_SENDER_NAME ?? "TripKeo";
+  const senderEmail = process.env.SENDER_EMAIL ?? "khoiyahoo@gmail.com";
+  const senderName = process.env.SENDER_NAME ?? "TripKeo";
 
   const htmlContent = `
 <!DOCTYPE html>
