@@ -713,7 +713,7 @@ const ActivityForm = ({
         <Button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="mx-auto flex items-center justify-center rounded-sm bg-primary-500 px-2 py-1 font-semibold text-primary-800 text-sm"
+          className="mx-auto flex items-center justify-center rounded-sm bg-primary-500 px-2 py-1 font-semibold text-sm text-white"
           size="sm"
         >
           {isSubmitting && (

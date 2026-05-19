@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) {
     return res.status(500).json({
-      error: "Server is missing VITE_BREVO_API_KEY",
+      error: "Server is missing BREVO_API_KEY",
     });
   }
 
@@ -20,17 +20,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const roleLabel =
-    role === "editor" ? "Biên tập" : role === "treasurer" ? "Thủ quỹ" : "Xem";
+    role === "editor"
+      ? "Biên tập"
+      : role === "treasurer"
+        ? "Thủ quỹ"
+        : "Thành viên";
   const senderEmail = process.env.SENDER_EMAIL ?? "khoiyahoo@gmail.com";
   const senderName = process.env.SENDER_NAME ?? "TripKeo";
+
+  // Derive the app origin from the invite link (e.g. https://tripkeo.app)
+  const appOrigin = new URL(inviteLink as string).origin;
+  const logoUrl = `${appOrigin}/logo.webp`;
 
   const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 16px; color: #1a1a1a;">
-  <div style="text-align: center; margin-bottom: 24px;">
-    <h1 style="font-size: 24px; color: #eb5757; margin: 0;">TripKeo</h1>
+  <div style="text-align: center; margin-bottom: 28px;">
+    <img src="${logoUrl}" alt="TripKeo" style="height: 40px; object-fit: contain;" />
   </div>
   <h2 style="font-size: 20px; margin-bottom: 8px;">Xin chào!</h2>
   <p style="font-size: 16px; line-height: 1.6;">
@@ -40,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   <p style="font-size: 16px; line-height: 1.6;">Nhấn vào nút bên dưới để tham gia:</p>
   <div style="text-align: center; margin: 32px 0;">
     <a href="${inviteLink}"
-       style="background: #eb5757; color: white; padding: 14px 32px;
+       style="background: #0D9488; color: white; padding: 14px 32px;
               border-radius: 10px; text-decoration: none; display: inline-block;
               font-size: 16px; font-weight: 600;">
       Tham gia ngay

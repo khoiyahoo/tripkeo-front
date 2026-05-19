@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Loader2, MapPin, UserPlus, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CalendarDays, Loader2, MapPin, Shield, XCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import {
   findInvitationByCode,
 } from "@/services/memberService";
 import { useAuthStore } from "@/stores/authStore";
+
+import logoUrl from "@/assets/logo.webp";
 
 import type { InvitationWithId } from "@/types/firestore";
 
@@ -66,7 +68,7 @@ const InvitePage = () => {
     load();
   }, [inviteCode]);
 
-  const handleAccept = async () => {
+  const handleAccept = useCallback(async () => {
     if (!invitation || !user) return;
     setIsAccepting(true);
     try {
@@ -86,9 +88,9 @@ const InvitePage = () => {
     } finally {
       setIsAccepting(false);
     }
-  };
+  }, [invitation, user, navigate]);
 
-  const handleDecline = async () => {
+  const handleDecline = useCallback(async () => {
     if (!invitation) return;
     setIsDeclining(true);
     try {
@@ -100,7 +102,7 @@ const InvitePage = () => {
     } finally {
       setIsDeclining(false);
     }
-  };
+  }, [invitation, navigate]);
 
   const handleAction = (action: "accept" | "decline") => {
     if (!user) {
@@ -112,14 +114,13 @@ const InvitePage = () => {
     else handleDecline();
   };
 
-  // After login, auto-execute the stored pending action with the fresh user context
+  // After login, auto-execute the pending action — deps are stable (useCallback)
   useEffect(() => {
     if (!user || !invitation || !pendingAction) return;
     const action = pendingAction;
     setPendingAction(null);
     if (action === "accept") handleAccept();
     else handleDecline();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, invitation, pendingAction, handleAccept, handleDecline]);
 
   if (isLoading) {
@@ -134,6 +135,9 @@ const InvitePage = () => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-8 text-center shadow-lg">
+          <div className="mb-4 flex justify-center">
+            <img src={logoUrl} alt="TripKeo" className="h-9 object-contain" />
+          </div>
           <XCircle className="mx-auto h-12 w-12 text-error-500" />
           <h2 className="font-semibold text-lg text-on-surface">{error}</h2>
           <Button variant="outline" onClick={() => navigate({ to: "/" })}>
@@ -146,38 +150,77 @@ const InvitePage = () => {
 
   if (!invitation) return null;
 
+  const roleLabel =
+    invitation.role === "editor"
+      ? "Biên tập"
+      : invitation.role === "treasurer"
+        ? "Thủ quỹ"
+        : "Thành viên";
+
+  const roleBadgeClass =
+    invitation.role === "editor"
+      ? "bg-primary-50 text-primary-700"
+      : invitation.role === "treasurer"
+        ? "bg-success-50 text-success-700"
+        : "bg-surface-dim text-on-surface-variant";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-4">
-      <div className="w-full max-w-md space-y-6 rounded-2xl bg-white p-8 shadow-lg">
-        <div className="space-y-2 text-center">
-          <UserPlus className="mx-auto h-12 w-12 text-primary-500" />
-          <h1 className="font-bold text-2xl text-on-surface">
-            Lời mời tham gia
-          </h1>
-          <p className="text-on-surface-variant">
-            Bạn được mời tham gia chuyến đi
+      <div className="w-full max-w-md space-y-5 rounded-2xl bg-white p-8 shadow-lg">
+        {/* Header */}
+        <div className="flex justify-center">
+          <img src={logoUrl} alt="TripKeo" className="h-9 object-contain" />
+        </div>
+
+        {/* Invite info */}
+        <div className="space-y-1 text-center">
+          <p className="text-on-surface-variant text-sm">
+            <span className="font-semibold text-on-surface">
+              {invitation.invitedByName || "Ai đó"}
+            </span>{" "}
+            mời bạn tham gia chuyến đi
           </p>
         </div>
 
-        <div className="space-y-3 rounded-xl bg-surface-dim/50 p-5">
-          <h2 className="font-semibold text-lg text-on-surface">
+        {/* Trip card */}
+        <div className="space-y-3 rounded-xl border border-outline-variant/50 bg-surface-dim/40 p-4">
+          <h2 className="font-bold text-lg text-on-surface">
             {invitation.tripName || "Chuyến đi"}
           </h2>
           {invitation.destination && (
             <div className="flex items-center gap-2 text-on-surface-variant text-sm">
-              <MapPin className="h-4 w-4" />
+              <MapPin className="h-4 w-4 shrink-0 text-primary-500" />
               {invitation.destination}
             </div>
           )}
-          <div className="inline-block rounded-full bg-primary-100 px-3 py-1 text-primary-800 text-sm">
-            {invitation.role === "editor"
-              ? "Biên tập"
-              : invitation.role === "treasurer"
-                ? "Thủ quỹ"
-                : "Thành viên"}
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-on-surface-variant" />
+            <span
+              className={`rounded-full px-3 py-0.5 font-medium text-sm ${roleBadgeClass}`}
+            >
+              {roleLabel}
+            </span>
           </div>
+          {invitation.expiresAt && (
+            <div className="flex items-center gap-2 text-on-surface-variant text-xs">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              Hết hạn:{" "}
+              {new Date(invitation.expiresAt.toMillis()).toLocaleDateString(
+                "vi-VN",
+                { day: "2-digit", month: "2-digit", year: "numeric" }
+              )}
+            </div>
+          )}
         </div>
 
+        {/* Login notice */}
+        {!user && (
+          <p className="rounded-lg bg-primary-50 px-4 py-2.5 text-center text-primary-700 text-sm">
+            Bạn cần đăng nhập để tham gia chuyến đi
+          </p>
+        )}
+
+        {/* Actions */}
         <div className="flex gap-3">
           <Button
             variant="outline"
@@ -192,7 +235,7 @@ const InvitePage = () => {
             )}
           </Button>
           <Button
-            className="flex-1"
+            className="flex-1 bg-primary-500 hover:bg-primary-600"
             disabled={isAccepting || isDeclining}
             onClick={() => handleAction("accept")}
           >
