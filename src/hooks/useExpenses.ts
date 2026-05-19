@@ -17,7 +17,6 @@ import type {
   DebtSettlement,
   ExpenseWithId,
   MemberBalance,
-  TripMemberInfo,
 } from "@/types/firestore";
 
 interface UseExpensesResult {
@@ -37,7 +36,7 @@ interface UseExpensesResult {
 
 export const useExpenses = (
   tripId: string,
-  members: Record<string, TripMemberInfo>
+  costMembers: string[]
 ): UseExpensesResult => {
   const user = useAuthStore((s) => s.user);
   const [expenses, setExpenses] = useState<ExpenseWithId[]>([]);
@@ -70,8 +69,8 @@ export const useExpenses = (
   const summary = useMemo(() => getExpenseSummary(expenses), [expenses]);
 
   const balances = useMemo(
-    () => calculateBalances(expenses, members),
-    [expenses, members]
+    () => calculateBalances(expenses, costMembers),
+    [expenses, costMembers]
   );
 
   const debts = useMemo(() => calculateDebts(balances), [balances]);

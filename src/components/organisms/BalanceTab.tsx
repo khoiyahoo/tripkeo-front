@@ -3,32 +3,20 @@ import { ArrowRight } from "lucide-react";
 // import { useState } from "react";
 
 // import { useState } from "react";
-
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency } from "@/utils/format";
 
-import type {
-  DebtSettlement,
-  MemberBalance,
-  TripMemberInfo,
-} from "@/types/firestore";
+import type { DebtSettlement, MemberBalance } from "@/types/firestore";
 
 interface BalanceTabProps {
   summary: ExpenseSummary;
   balances: MemberBalance[];
   debts: DebtSettlement[];
-  members: Record<string, TripMemberInfo>;
 }
 
-export const BalanceTab = ({
-  summary,
-  balances,
-  debts,
-  members,
-}: BalanceTabProps) => {
+export const BalanceTab = ({ summary, balances, debts }: BalanceTabProps) => {
   // const [_copied, setCopied] = useState(false);
   // const copyText = buildCopyText(tripName, summary, balances, debts);
 
@@ -77,16 +65,15 @@ export const BalanceTab = ({
         <CardContent className="space-y-3">
           {balances.map((b) => (
             <div
-              key={b.uid}
+              key={b.name}
               className="flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50"
             >
-              <Avatar className="h-9 w-9">
-                <AvatarImage src={b.photoURL} alt={b.displayName} />
-                <AvatarFallback>{b.displayName[0]}</AvatarFallback>
-              </Avatar>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 font-semibold text-primary-800 text-sm">
+                {b.name[0]?.toUpperCase()}
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-on-surface text-sm">
-                  {b.displayName}
+                  {b.name}
                 </p>
                 <p className="text-on-surface-variant text-xs">
                   Đã trả {formatCurrency(b.totalPaid)} · Phần chịu{" "}
@@ -126,48 +113,33 @@ export const BalanceTab = ({
             <CardTitle className="text-base">Ai trả ai?</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {debts.map((d) => {
-              const from = members[d.fromUid];
-              const to = members[d.toUid];
-              return (
-                <div
-                  key={`${d.fromUid}-${d.toUid}-${d.amount}`}
-                  className="flex items-center gap-3 rounded-xl border border-outline-variant p-3"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage
-                        src={from?.photoURL}
-                        alt={from?.displayName}
-                      />
-                      <AvatarFallback>{from?.displayName?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <span
-                      className="max-w-24 font-medium text-error-600 text-sm max-lg:truncate lg:max-w-48"
-                      title={from?.displayName}
-                    >
-                      {from?.displayName || d.fromName}
-                    </span>
+            {debts.map((d, i) => (
+              <div
+                key={`${d.fromName}-${d.toName}-${i}`}
+                className="flex items-center gap-3 rounded-xl border border-outline-variant p-3"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-error-100 font-semibold text-error-700 text-xs">
+                    {d.fromName[0]?.toUpperCase()}
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-on-surface-variant" />
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={to?.photoURL} alt={to?.displayName} />
-                      <AvatarFallback>{to?.displayName?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <span
-                      className="max-w-24 font-medium text-sm text-success-600 max-lg:truncate lg:max-w-48"
-                      title={to?.displayName}
-                    >
-                      {to?.displayName || d.toName}
-                    </span>
-                  </div>
-                  <span className="ml-auto font-bold text-on-surface text-sm">
-                    {formatCurrency(d.amount)}
+                  <span className="max-w-24 font-medium text-error-600 text-sm max-lg:truncate lg:max-w-48">
+                    {d.fromName}
                   </span>
                 </div>
-              );
-            })}
+                <ArrowRight className="h-4 w-4 shrink-0 text-on-surface-variant" />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-100 font-semibold text-success-700 text-xs">
+                    {d.toName[0]?.toUpperCase()}
+                  </div>
+                  <span className="max-w-24 font-medium text-sm text-success-600 max-lg:truncate lg:max-w-48">
+                    {d.toName}
+                  </span>
+                </div>
+                <span className="ml-auto font-bold text-on-surface text-sm">
+                  {formatCurrency(d.amount)}
+                </span>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

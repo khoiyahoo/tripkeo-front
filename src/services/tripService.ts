@@ -1,5 +1,7 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -48,6 +50,11 @@ export const createTrip = async (
     joinedAt: Timestamp.now(),
   };
 
+  // Start with owner name as the first cost member (deduped)
+  const initialCostMembers = Array.from(
+    new Set([userDisplayName, ...(input.costMembers ?? [])])
+  );
+
   const tripData: Omit<TripDoc, "createdAt" | "updatedAt"> & {
     createdAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
@@ -63,6 +70,7 @@ export const createTrip = async (
     createdBy: userId,
     memberIds: [userId],
     members: { [userId]: memberInfo },
+    costMembers: initialCostMembers,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -166,4 +174,26 @@ export const subscribeToTrip = (
     },
     onError
   );
+};
+
+// ─── Cost Members ─────────────────────────────────────────────
+
+export const addCostMember = async (
+  tripId: string,
+  name: string
+): Promise<void> => {
+  await updateDoc(doc(db, TRIPS_COLLECTION, tripId), {
+    costMembers: arrayUnion(name.trim()),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const removeCostMember = async (
+  tripId: string,
+  name: string
+): Promise<void> => {
+  await updateDoc(doc(db, TRIPS_COLLECTION, tripId), {
+    costMembers: arrayRemove(name),
+    updatedAt: serverTimestamp(),
+  });
 };

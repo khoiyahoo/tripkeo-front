@@ -16,6 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -100,11 +107,13 @@ const CreateTripPage = () => {
   const { handleCreateTrip } = useTrips();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [_formError, setFormError] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
-  const [inviteRole, setInviteRole] = useState<"editor" | "member">("editor");
+  const [inviteRole, setInviteRole] = useState<
+    "editor" | "member" | "treasurer"
+  >("editor");
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -383,7 +392,7 @@ const CreateTripPage = () => {
                 <div>
                   <Label htmlFor="emailInput">Mời thành viên qua email</Label>
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex min-h-[42px] flex-1 flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
+                    <div className="flex min-h-10.5 flex-1 flex-wrap items-center gap-1.5 rounded-md border border-outline-variant bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
                       {formData.invitedMembers.map((member) => (
                         <span
                           key={member.email}
@@ -408,7 +417,7 @@ const CreateTripPage = () => {
                             ? "Thêm email..."
                             : "Nhập email và nhấn Enter, dấu phẩy hoặc Space..."
                         }
-                        className="min-w-[200px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-on-surface-variant/60"
+                        className="min-w-50 flex-1 border-none bg-transparent text-sm outline-none placeholder:text-on-surface-variant/60"
                         value={emailInput}
                         onChange={(e) => {
                           setEmailInput(e.target.value);
@@ -421,16 +430,23 @@ const CreateTripPage = () => {
                         }}
                       />
                     </div>
-                    <select
+                    <Select
                       value={inviteRole}
-                      onChange={(e) =>
-                        setInviteRole(e.target.value as "editor" | "member")
+                      onValueChange={(value) =>
+                        setInviteRole(
+                          value as "editor" | "member" | "treasurer"
+                        )
                       }
-                      className="h-[42px] rounded-md border border-input bg-background px-3 text-sm"
                     >
-                      <option value="editor">Biên tập</option>
-                      <option value="member">Thành viên</option>
-                    </select>
+                      <SelectTrigger className="h-10.5 w-37.5">
+                        <SelectValue placeholder="Chọn vai trò" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="editor">Biên tập</SelectItem>
+                        <SelectItem value="member">Thành viên</SelectItem>
+                        <SelectItem value="treasurer">Thủ quỹ</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   {emailError && (
                     <p className="mt-1 text-error-500 text-sm">{emailError}</p>
@@ -484,31 +500,6 @@ const CreateTripPage = () => {
                       Nhập email thành viên để mời ngay hoặc bỏ qua bước này
                     </p>
                   </div>
-                )}
-              </div>
-            )}
-
-            {currentStep === 3 && (
-              <div className="space-y-5">
-                <div>
-                  {/* <Label htmlFor="totalBudget">Tổng ngân sách dự kiến</Label> */}
-                  <div className="relative mt-1.5">
-                    <span className="absolute top-1/2 left-3 -translate-y-1/2 font-medium text-on-surface-variant text-sm">
-                      ₫
-                    </span>
-                    <Input
-                      // id="totalBudget"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="10.000.000"
-                      className="pl-7"
-                      // value={formData.budget}
-                      // removed budget logic
-                    />
-                  </div>
-                </div>
-                {formError && (
-                  <p className="text-error-500 text-sm">{formError}</p>
                 )}
               </div>
             )}

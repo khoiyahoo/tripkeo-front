@@ -37,6 +37,7 @@ import { useTripMembers } from "@/hooks/useMembers";
 import { useTrip } from "@/hooks/useTrip";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { addCostMember, removeCostMember } from "@/services/tripService";
 import { useAuthStore } from "@/stores/authStore";
 import {
   formatTimestampRange,
@@ -79,7 +80,7 @@ const TripDetailPage = () => {
     handleAddExpense,
     handleUpdateExpense,
     handleDeleteExpense,
-  } = useExpenses(tripId, trip?.members ?? {});
+  } = useExpenses(tripId, trip?.costMembers ?? []);
   const {
     handleInviteMember,
     handleRemoveMember,
@@ -88,6 +89,13 @@ const TripDetailPage = () => {
     handleCheckDuplicate,
     handleCreateShareLink,
   } = useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
+
+  const handleAddCostMember = async (name: string) => {
+    await addCostMember(tripId, name);
+  };
+  const handleRemoveCostMember = async (name: string) => {
+    await removeCostMember(tripId, name);
+  };
 
   if (isLoading) {
     return (
@@ -150,7 +158,7 @@ const TripDetailPage = () => {
       year: "numeric",
     }).format(trip.endDate.toDate()),
     memberNames: activeMembers.map(([, m]) => m.displayName),
-    memberCount: activeMembers.length,
+    memberCount: (trip.costMembers ?? []).length,
   };
 
   // Group activities by date for itinerary
@@ -330,6 +338,7 @@ const TripDetailPage = () => {
                 expenses={expenses}
                 summary={summary}
                 members={trip.members}
+                costMembers={trip.costMembers ?? []}
                 isLoading={isExpensesLoading}
                 currentUserRole={currentUserRole}
                 balances={balances}
@@ -340,21 +349,20 @@ const TripDetailPage = () => {
               />
             </TabsContent>
             <TabsContent value="balance">
-              <BalanceTab
-                summary={summary}
-                balances={balances}
-                debts={debts}
-                members={trip.members}
-              />
+              <BalanceTab summary={summary} balances={balances} debts={debts} />
             </TabsContent>
             <TabsContent value="members">
               <MembersTab
                 members={trip.members}
+                costMembers={trip.costMembers ?? []}
                 currentUserRole={currentUserRole}
                 currentUserId={user?.uid}
                 tripName={trip.name}
+                tripEndDate={trip.endDate.toDate().toISOString().split("T")[0]}
                 expenses={expenses}
                 balances={balances}
+                onAddCostMember={handleAddCostMember}
+                onRemoveCostMember={handleRemoveCostMember}
                 onInviteMember={handleInviteMember}
                 onRemoveMember={handleRemoveMember}
                 onLeaveTrip={async (userId, participationEnd) => {

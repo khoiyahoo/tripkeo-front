@@ -20,7 +20,6 @@ import type {
   CreateExpenseInput,
   ExpenseWithId,
   SplitMethod,
-  TripMemberInfo,
 } from "@/types/firestore";
 import type { ExpenseCategory } from "@/types/trip";
 
@@ -49,22 +48,20 @@ const SPLIT_METHODS: { value: SplitMethod; label: string }[] = [
 ];
 
 interface AddExpenseFormProps {
-  members: Record<string, TripMemberInfo>;
+  /** Names from the trip's costMembers list */
+  costMembers: string[];
   initialData?: ExpenseWithId;
   onSubmit: (input: CreateExpenseInput) => Promise<unknown>;
   onCancel: () => void;
 }
 
 export const AddExpenseForm = ({
-  members,
+  costMembers,
   initialData,
   onSubmit,
   onCancel,
 }: AddExpenseFormProps) => {
   const isEditMode = !!initialData;
-  const activeMemberIds = Object.entries(members)
-    .filter(([, m]) => (m.status ?? "active") === "active")
-    .map(([uid]) => uid);
 
   const [description, setDescription] = useState(
     initialData?.description ?? ""
@@ -80,12 +77,12 @@ export const AddExpenseForm = ({
       ? toDateInputStr(initialData.date)
       : new Date().toISOString().split("T")[0]
   );
-  const [paidByUid, setPaidByUid] = useState(initialData?.paidByUid ?? "");
+  const [paidBy, setPaidBy] = useState(initialData?.paidBy ?? "");
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(
     initialData?.splitMethod ?? "equal"
   );
   const [splitBetween, setSplitBetween] = useState<string[]>(
-    initialData?.splitBetween ?? activeMemberIds
+    initialData?.splitBetween ?? costMembers
   );
   const [splitDetails, setSplitDetails] = useState<Record<string, number>>(
     initialData?.splitDetails ?? {}
@@ -95,14 +92,14 @@ export const AddExpenseForm = ({
 
   const amount = Number(amountRaw) || 0;
 
-  const toggleMember = (uid: string) => {
+  const toggleMember = (name: string) => {
     setSplitBetween((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
     );
   };
 
-  const updateDetail = (uid: string, val: number) => {
-    setSplitDetails((prev) => ({ ...prev, [uid]: val }));
+  const updateDetail = (name: string, val: number) => {
+    setSplitDetails((prev) => ({ ...prev, [name]: val }));
   };
 
   // Validation
@@ -111,30 +108,26 @@ export const AddExpenseForm = ({
     if (splitMethod === "equal") return true;
     if (splitMethod === "percentage") {
       const total = splitBetween.reduce(
-        (s, uid) => s + (splitDetails[uid] ?? 0),
+        (s, name) => s + (splitDetails[name] ?? 0),
         0
       );
       return Math.abs(total - 100) < 0.01;
     }
     if (splitMethod === "amount") {
       const total = splitBetween.reduce(
-        (s, uid) => s + (splitDetails[uid] ?? 0),
+        (s, name) => s + (splitDetails[name] ?? 0),
         0
       );
       return amount > 0 && Math.abs(total - amount) < 1;
     }
     if (splitMethod === "shares") {
-      return splitBetween.every((uid) => (splitDetails[uid] ?? 1) >= 1);
+      return splitBetween.every((name) => (splitDetails[name] ?? 1) >= 1);
     }
     return true;
   })();
 
   const canSubmit =
-    description.trim() &&
-    amount > 0 &&
-    paidByUid &&
-    splitValid &&
-    !isSubmitting;
+    description.trim() && amount > 0 && paidBy && splitValid && !isSubmitting;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -144,8 +137,7 @@ export const AddExpenseForm = ({
       amount,
       category,
       date,
-      paidByUid,
-      paidByName: members[paidByUid]?.displayName ?? "",
+      paidBy,
       splitBetween,
       splitMethod,
       splitDetails: splitMethod !== "equal" ? splitDetails : undefined,
@@ -159,14 +151,14 @@ export const AddExpenseForm = ({
   const splitSummary = (() => {
     if (splitMethod === "percentage") {
       const total = splitBetween.reduce(
-        (s, uid) => s + (splitDetails[uid] ?? 0),
+        (s, name) => s + (splitDetails[name] ?? 0),
         0
       );
       return `Tổng: ${total}% ${Math.abs(total - 100) < 0.01 ? "✓" : `(cần 100%)`}`;
     }
     if (splitMethod === "amount") {
       const total = splitBetween.reduce(
-        (s, uid) => s + (splitDetails[uid] ?? 0),
+        (s, name) => s + (splitDetails[name] ?? 0),
         0
       );
       return `Tổng: ${total.toLocaleString("vi-VN")}đ ${Math.abs(total - amount) < 1 ? "✓" : `/ ${amount.toLocaleString("vi-VN")}đ`}`;
@@ -225,31 +217,34 @@ export const AddExpenseForm = ({
 
         <div>
           <Label>Người trả *</Label>
-          <Select value={paidByUid} onValueChange={setPaidByUid}>
+          <Select value={paidBy} onValueChange={setPaidBy}>
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Chọn người trả" />
             </SelectTrigger>
             <SelectContent>
-              {activeMemberIds.map((uid) => (
-                <SelectItem key={uid} value={uid}>
-                  {members[uid]?.displayName ?? uid}
+              {costMembers.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <p className="mt-1 text-on-surface-variant text-xs">
+            Nếu nhiều người cùng trả, hãy thêm mục riêng cho từng người.
+          </p>
         </div>
 
         <div>
           <Label>Người tham gia</Label>
           <div className="mt-2 flex flex-wrap gap-2">
-            {activeMemberIds.map((uid) => (
+            {costMembers.map((name) => (
               <button
-                key={uid}
+                key={name}
                 type="button"
-                onClick={() => toggleMember(uid)}
-                className={`rounded-full border px-3 py-1 font-medium text-xs transition-colors ${splitBetween.includes(uid) ? "border-primary-500 bg-primary-100 text-primary-800" : "border-outline-variant bg-surface text-on-surface-variant"}`}
+                onClick={() => toggleMember(name)}
+                className={`rounded-full border px-3 py-1 font-medium text-xs transition-colors ${splitBetween.includes(name) ? "border-primary-500 bg-primary-100 text-primary-800" : "border-outline-variant bg-surface text-on-surface-variant"}`}
               >
-                {members[uid]?.displayName ?? uid}
+                {name}
               </button>
             ))}
           </div>
@@ -278,9 +273,8 @@ export const AddExpenseForm = ({
 
         {splitMethod !== "equal" && splitBetween.length > 0 && (
           <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-dim/50 p-3">
-            {splitBetween.map((uid) => {
-              // Always store as number, but display as formatted string
-              const rawNum = splitDetails[uid];
+            {splitBetween.map((name) => {
+              const rawNum = splitDetails[name];
               let displayValue = "";
               if (
                 splitMethod === "amount" &&
@@ -300,9 +294,9 @@ export const AddExpenseForm = ({
                 displayValue = "";
               }
               return (
-                <div key={uid} className="flex items-center gap-2">
+                <div key={name} className="flex items-center gap-2">
                   <span className="w-28 truncate text-on-surface text-sm">
-                    {members[uid]?.displayName ?? uid}
+                    {name}
                   </span>
                   <Input
                     inputMode="numeric"
@@ -315,9 +309,9 @@ export const AddExpenseForm = ({
                         splitMethod === "percentage"
                       ) {
                         val = parseCurrencyInput(val);
-                        updateDetail(uid, val ? Number(val) : 0);
+                        updateDetail(name, val ? Number(val) : 0);
                       } else {
-                        updateDetail(uid, Number(val) || 0);
+                        updateDetail(name, Number(val) || 0);
                       }
                     }}
                     className="h-8 w-100 text-sm"

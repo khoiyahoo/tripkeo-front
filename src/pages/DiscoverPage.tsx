@@ -1,12 +1,4 @@
-import {
-  Calendar,
-  Copy,
-  Filter,
-  MapPin,
-  Search,
-  Star,
-  Wallet,
-} from "lucide-react";
+import { Calendar, Copy, Filter, MapPin, Search, Star } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MOCK_DISCOVER_TRIPS } from "@/constants/mockData";
 import { MainLayout } from "@/layouts/MainLayout";
-import { formatCurrency } from "@/utils/format";
 
 import type { DiscoverTrip } from "@/types/trip";
 
@@ -54,10 +45,6 @@ const DiscoverCard = ({ trip }: { trip: DiscoverTrip }) => (
           <span className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5" />
             {trip.days} ngày
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Wallet className="h-3.5 w-3.5" />
-            {formatCurrency(trip.budget)}/người
           </span>
         </div>
       </div>

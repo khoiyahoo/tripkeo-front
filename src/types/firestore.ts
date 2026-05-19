@@ -37,11 +37,12 @@ export interface TripDoc {
   startDate: Timestamp;
   endDate: Timestamp;
   description: string;
-  // budget: number;
   currency: string;
   createdBy: string;
   memberIds: string[];
   members: Record<string, TripMemberInfo>;
+  /** Names entered by the owner for expense tracking (no auth required). */
+  costMembers: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -71,19 +72,18 @@ export interface ExpenseDoc {
   amount: number;
   category: ExpenseCategory;
   date: Timestamp;
-  /** UID of the person who paid */
-  paidByUid: string;
-  paidByName: string;
-  /** UIDs of participants in the split */
+  /** Name of the payer – from the trip's costMembers list */
+  paidBy: string;
+  /** Names of participants – subset of costMembers */
   splitBetween: string[];
   /** How the expense is divided */
   splitMethod: SplitMethod;
   /**
-   * Per-member split detail (uid → value).
+   * Per-member split detail (name → value).
    * - equal: not stored (computed)
-   * - percentage: uid → percent (must sum to 100)
-   * - amount: uid → exact amount (must sum to expense amount)
-   * - shares: uid → number of shares
+   * - percentage: name → percent (must sum to 100)
+   * - amount: name → exact amount (must sum to expense amount)
+   * - shares: name → number of shares
    */
   splitDetails?: Record<string, number>;
   receiptUrl?: string;
@@ -145,6 +145,8 @@ export interface CreateTripInput {
   description?: string;
   // budget: number;
   currency: string;
+  /** Names of cost members added at creation time (owner name is auto-added) */
+  costMembers?: string[];
   invitedMembers?: InvitedMember[];
 }
 
@@ -166,8 +168,9 @@ export interface CreateExpenseInput {
   amount: number;
   category: ExpenseCategory;
   date: string; // YYYY-MM-DD
-  paidByUid: string;
-  paidByName: string;
+  /** Name of payer (from costMembers) */
+  paidBy: string;
+  /** Names of participants (from costMembers) */
   splitBetween: string[];
   splitMethod: SplitMethod;
   splitDetails?: Record<string, number>;
@@ -182,18 +185,15 @@ export interface InviteMemberInput {
 
 // ─── Balance calculation types ───────────────────────────────
 export interface MemberBalance {
-  uid: string;
-  displayName: string;
-  photoURL: string;
+  /** Cost member name */
+  name: string;
   totalPaid: number;
   totalOwed: number;
-  net: number; // positive = is owed, negative = owes
+  net: number; // positive = is owed money, negative = owes money
 }
 
 export interface DebtSettlement {
-  fromUid: string;
   fromName: string;
-  toUid: string;
   toName: string;
   amount: number;
 }

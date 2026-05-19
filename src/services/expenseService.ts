@@ -20,7 +20,6 @@ import type {
   ExpenseWithId,
   MemberBalance,
   SplitMethod,
-  TripMemberInfo,
 } from "@/types/firestore";
 
 const expensesRef = (tripId: string) =>
@@ -35,16 +34,32 @@ const toExpenseWithId = (
 });
 
 // ─── Active-member helper ─────────────────────────────────────
+// (Kept for system-member operations; cost members are now plain strings)
 
-/** Returns only members with status "active" (or undefined, for legacy records). */
-export const getActiveMembers = (
-  members: Record<string, TripMemberInfo>
-): Record<string, TripMemberInfo> =>
-  Object.fromEntries(
-    Object.entries(members).filter(
-      ([, m]) => (m.status ?? "active") === "active"
-    )
+// ─── Cost-member expense constraint check ────────────────────
+
+/**
+ * Returns expense info for a given cost-member name.
+ * Used to enforce "cannot remove cost member if linked to expenses".
+ */
+export const getCostMemberExpenseInfo = (
+  expenses: ExpenseWithId[],
+  name: string
+): {
+  hasExpenses: boolean;
+  asPayer: ExpenseWithId[];
+  asParticipant: ExpenseWithId[];
+} => {
+  const asPayer = expenses.filter((e) => e.paidBy === name);
+  const asParticipant = expenses.filter(
+    (e) => e.splitBetween.includes(name) && e.paidBy !== name
   );
+  return {
+    hasExpenses: asPayer.length > 0 || asParticipant.length > 0,
+    asPayer,
+    asParticipant,
+  };
+};
 
 // ─── Split calculation ───────────────────────────────────────
 
@@ -110,8 +125,7 @@ export const createExpense = async (
     amount: input.amount,
     category: input.category,
     date: Timestamp.fromDate(new Date(input.date)),
-    paidByUid: input.paidByUid,
-    paidByName: input.paidByName,
+    paidBy: input.paidBy,
     splitBetween: input.splitBetween,
     splitMethod: input.splitMethod,
     splitDetails: input.splitDetails ?? {},
@@ -137,8 +151,7 @@ export const updateExpense = async (
   if (data.category !== undefined) updateData.category = data.category;
   if (data.date !== undefined)
     updateData.date = Timestamp.fromDate(new Date(data.date));
-  if (data.paidByUid !== undefined) updateData.paidByUid = data.paidByUid;
-  if (data.paidByName !== undefined) updateData.paidByName = data.paidByName;
+  if (data.paidBy !== undefined) updateData.paidBy = data.paidBy;
   if (data.splitBetween !== undefined)
     updateData.splitBetween = data.splitBetween;
   if (data.splitMethod !== undefined) updateData.splitMethod = data.splitMethod;
@@ -180,24 +193,27 @@ export const subscribeToExpenses = (
 
 // ─── Per-person balance ──────────────────────────────────────
 
+/**
+ * Calculates balances for cost members (name-based, not UID-based).
+ * @param expenses - all expenses in the trip
+ * @param costMembers - names entered by the owner (e.g. ["Minh", "Hương"])
+ */
 export const calculateBalances = (
   expenses: ExpenseWithId[],
-  members: Record<string, TripMemberInfo>
+  costMembers: string[]
 ): MemberBalance[] => {
-  const memberIds = Object.keys(members);
-
   const paid: Record<string, number> = {};
   const owed: Record<string, number> = {};
 
-  for (const uid of memberIds) {
-    paid[uid] = 0;
-    owed[uid] = 0;
+  for (const name of costMembers) {
+    paid[name] = 0;
+    owed[name] = 0;
   }
 
   for (const exp of expenses) {
-    const payerUid = exp.paidByUid;
-    if (paid[payerUid] !== undefined) {
-      paid[payerUid] += exp.amount;
+    const payer = exp.paidBy;
+    if (paid[payer] !== undefined) {
+      paid[payer] += exp.amount;
     }
 
     const owedMap = getOwedPerPerson(
@@ -207,20 +223,18 @@ export const calculateBalances = (
       exp.splitDetails
     );
 
-    for (const [uid, share] of Object.entries(owedMap)) {
-      if (owed[uid] !== undefined) {
-        owed[uid] += share;
+    for (const [name, share] of Object.entries(owedMap)) {
+      if (owed[name] !== undefined) {
+        owed[name] += share;
       }
     }
   }
 
-  return memberIds.map((uid) => ({
-    uid,
-    displayName: members[uid]?.displayName ?? "Unknown",
-    photoURL: members[uid]?.photoURL ?? "",
-    totalPaid: paid[uid] ?? 0,
-    totalOwed: owed[uid] ?? 0,
-    net: (paid[uid] ?? 0) - (owed[uid] ?? 0),
+  return costMembers.map((name) => ({
+    name,
+    totalPaid: paid[name] ?? 0,
+    totalOwed: owed[name] ?? 0,
+    net: (paid[name] ?? 0) - (owed[name] ?? 0),
   }));
 };
 
@@ -245,10 +259,8 @@ export const calculateDebts = (balances: MemberBalance[]): DebtSettlement[] => {
     const amount = Math.min(creditors[ci].net, debtors[di].net);
     if (amount > 0.5) {
       settlements.push({
-        fromUid: debtors[di].uid,
-        fromName: debtors[di].displayName,
-        toUid: creditors[ci].uid,
-        toName: creditors[ci].displayName,
+        fromName: debtors[di].name,
+        toName: creditors[ci].name,
         amount: Math.round(amount),
       });
     }
@@ -305,24 +317,5 @@ export const getExpenseSummary = (
 
 // ─── Member-expense relationship check ───────────────────────
 
-export interface MemberExpenseInfo {
-  hasExpenses: boolean;
-  asPayer: ExpenseWithId[];
-  asParticipant: ExpenseWithId[];
-}
-
-/** Check if a member is linked to any expenses (as payer or participant). */
-export const getMemberExpenseInfo = (
-  expenses: ExpenseWithId[],
-  memberUid: string
-): MemberExpenseInfo => {
-  const asPayer = expenses.filter((e) => e.paidByUid === memberUid);
-  const asParticipant = expenses.filter(
-    (e) => e.splitBetween?.includes(memberUid) && e.paidByUid !== memberUid
-  );
-  return {
-    hasExpenses: asPayer.length > 0 || asParticipant.length > 0,
-    asPayer,
-    asParticipant,
-  };
-};
+// getMemberExpenseInfo by UID is no longer needed since expenses are name-based.
+// Use getCostMemberExpenseInfo(expenses, name) instead.

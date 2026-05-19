@@ -37,7 +37,10 @@ interface ExpensesTabProps {
   };
   expenses: ExpenseWithId[];
   summary: ExpenseSummary;
+  /** System members map (for role checks) */
   members: Record<string, TripMemberInfo>;
+  /** Cost members list (names for expense split UI) */
+  costMembers: string[];
   isLoading: boolean;
   currentUserRole?: TripRole;
   balances?: MemberBalance[];
@@ -105,6 +108,7 @@ export const ExpensesTab = ({
   expenses,
   summary,
   members,
+  costMembers,
   isLoading,
   currentUserRole,
   balances = [],
@@ -119,11 +123,7 @@ export const ExpensesTab = ({
   const canEdit =
     currentUserRole === "owner" || currentUserRole === "treasurer";
   const ownerName =
-    Object.values(members).find((m) => (m as TripMemberInfo).role === "owner")
-      ?.displayName ?? "";
-  const activeMemberCount = Object.values(members).filter(
-    (m) => ((m as TripMemberInfo).status ?? "active") === "active"
-  ).length;
+    Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
 
   const editingExpense =
     editingExpenseId !== null
@@ -188,9 +188,9 @@ export const ExpensesTab = ({
               Trung bình / người
             </p>
             <p className="font-bold text-2xl text-on-surface">
-              {activeMemberCount > 0
+              {costMembers.length > 0
                 ? formatCurrency(
-                    Math.round(summary.totalSpent / activeMemberCount)
+                    Math.round(summary.totalSpent / costMembers.length)
                   )
                 : "—"}
             </p>
@@ -237,7 +237,7 @@ export const ExpensesTab = ({
             <div className="mb-4">
               <AddExpenseForm
                 key="new"
-                members={members}
+                costMembers={costMembers}
                 onSubmit={onAddExpense}
                 onCancel={() => setIsAdding(false)}
               />
@@ -248,7 +248,7 @@ export const ExpensesTab = ({
             <div className="mb-4">
               <AddExpenseForm
                 key={editingExpense.id}
-                members={members}
+                costMembers={costMembers}
                 initialData={editingExpense}
                 onSubmit={handleEditSubmit}
                 onCancel={() => setEditingExpenseId(null)}
@@ -288,7 +288,7 @@ export const ExpensesTab = ({
                       </p>
                       <p className="text-on-surface-variant text-xs">
                         {timestampToDateStr(expense.date)} ·{" "}
-                        {expense.paidByName || "?"} trả · chia {methodLabel} (
+                        {expense.paidBy || "?"} trả · chia {methodLabel} (
                         {splitCount} người)
                       </p>
                     </div>

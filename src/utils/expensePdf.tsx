@@ -315,7 +315,7 @@ export const ExpensePdfDocument = ({
                   {fmtCurrency(exp.amount)}
                 </Text>
                 <Text style={[styles.cell, { width: COL.paidBy }]}>
-                  {exp.paidByName || "?"}
+                  {exp.paidBy || "?"}
                 </Text>
                 <Text style={[styles.cell, { width: COL.note }]}>
                   {exp.note ?? ""}
@@ -350,8 +350,8 @@ export const ExpensePdfDocument = ({
               </Text>
             </View>
             {balances.map((b: MemberBalance) => (
-              <View key={b.uid} style={styles.balanceRow}>
-                <Text style={{ fontSize: 8.5, flex: 2 }}>{b.displayName}</Text>
+              <View key={b.name} style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5, flex: 2 }}>{b.name}</Text>
                 <Text style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}>
                   {fmtCurrency(b.totalPaid)}
                 </Text>
@@ -398,7 +398,7 @@ export const ExpensePdfDocument = ({
               </View>
               {debts.map((d: DebtSettlement, i: number) => (
                 <View
-                  key={`${d.fromUid}-${d.toUid}-${i}`}
+                  key={`${d.fromName}-${d.toName}-${i}`}
                   style={styles.balanceRow}
                 >
                   <Text style={{ fontSize: 8.5, flex: 2, color: C.red }}>
