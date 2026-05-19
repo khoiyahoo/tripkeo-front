@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   Check,
   Copy,
   Crown,
@@ -6,12 +7,14 @@ import {
   Link2,
   Loader2,
   LogOut,
+  UserMinus,
   UserPlus,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/molecules/DatePicker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,10 +37,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { getMemberExpenseInfo } from "@/services/expenseService";
 
 import type {
+  ExpenseWithId,
   InvitationWithId,
   InviteMemberInput,
+  MemberBalance,
+  MemberStatus,
   TripMemberInfo,
   TripRole,
 } from "@/types/firestore";
@@ -52,8 +59,14 @@ const ROLE_LABELS: Record<TripRole, string> = {
 const ROLE_COLORS: Record<TripRole, string> = {
   owner: "bg-tertiary-50 text-tertiary-700",
   editor: "bg-primary-50 text-primary-700",
-  treasurer: "bg-emerald-50 text-emerald-700",
+  treasurer: "bg-success-50 text-success-700",
   member: "bg-surface-dim text-on-surface-variant",
+};
+
+const STATUS_LABELS: Record<MemberStatus, string> = {
+  active: "",
+  left: "Đã rời",
+  removed: "Đã bị xóa",
 };
 
 interface MembersTabProps {
@@ -61,9 +74,13 @@ interface MembersTabProps {
   currentUserRole: TripRole | undefined;
   currentUserId: string | undefined;
   tripName: string;
+  /** Expenses for constraint checks (block leave/kick if linked) */
+  expenses: ExpenseWithId[];
+  /** Pass current user's balance so the leave dialog can show a financial summary */
+  balances?: MemberBalance[];
   onInviteMember: (input: InviteMemberInput) => Promise<string>;
   onRemoveMember: (userId: string) => Promise<void>;
-  onLeaveTrip: (userId: string) => Promise<void>;
+  onLeaveTrip: (userId: string, participationEnd?: string) => Promise<void>;
   onUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   onCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   onCreateShareLink: (
@@ -76,6 +93,8 @@ export const MembersTab = ({
   currentUserRole,
   currentUserId,
   tripName,
+  expenses,
+  balances,
   onInviteMember,
   onRemoveMember,
   onLeaveTrip,
@@ -94,17 +113,41 @@ export const MembersTab = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveDate, setLeaveDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [kickTarget, setKickTarget] = useState<{
     uid: string;
     displayName: string;
   } | null>(null);
   const [isKicking, setIsKicking] = useState(false);
+  const [blockDialog, setBlockDialog] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
+
+  const hasExpenses = expenses.length > 0;
 
   const isOwner = currentUserRole === "owner";
-  const memberEntries = Object.entries(members);
+  const isTreasurer = currentUserRole === "treasurer";
+
+  // Separate active vs left/removed members
+  const activeEntries = Object.entries(members).filter(
+    ([, m]) => (m.status ?? "active") === "active"
+  );
+  const formerEntries = Object.entries(members).filter(
+    ([, m]) => m.status === "left" || m.status === "removed"
+  );
+
   const canLeave = currentUserRole !== undefined && currentUserRole !== "owner";
   const ownerName =
     Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
+
+  // Current user's balance summary for leave dialog
+  const currentUserBalance = balances?.find((b) => b.uid === currentUserId);
+  const hasTreasurerInGroup = activeEntries.some(
+    ([uid, m]) => m.role === "treasurer" && uid !== currentUserId
+  );
 
   const handleUpdateRole = async (uid: string, newRole: TripRole) => {
     try {
@@ -178,9 +221,19 @@ export const MembersTab = ({
 
   const handleLeaveTrip = async () => {
     if (!currentUserId) return;
+    // Check if user is linked to expenses
+    const info = getMemberExpenseInfo(expenses, currentUserId);
+    if (info.hasExpenses) {
+      setBlockDialog({
+        title: "🚫 Không thể rời chuyến đi",
+        message: `Bạn liên quan đến ${info.asPayer.length + info.asParticipant.length} chi tiêu. Hãy xóa hoặc chuyển chi tiêu trước khi rời.`,
+      });
+      setIsLeaveDialogOpen(false);
+      return;
+    }
     setIsLeaving(true);
     try {
-      await onLeaveTrip(currentUserId);
+      await onLeaveTrip(currentUserId, leaveDate);
       toast.success("Đã rời khỏi chuyến đi");
     } catch {
       toast.error("Không thể rời chuyến đi. Vui lòng thử lại.");
@@ -192,6 +245,16 @@ export const MembersTab = ({
 
   const handleKickMember = async () => {
     if (!kickTarget) return;
+    // Check if member is linked to expenses
+    const info = getMemberExpenseInfo(expenses, kickTarget.uid);
+    if (info.hasExpenses) {
+      setBlockDialog({
+        title: "🚫 Không thể xóa thành viên",
+        message: `${kickTarget.displayName} liên quan đến ${info.asPayer.length + info.asParticipant.length} chi tiêu. Hãy xóa hoặc chỉnh sửa chi tiêu trước.`,
+      });
+      setKickTarget(null);
+      return;
+    }
     setIsKicking(true);
     try {
       await onRemoveMember(kickTarget.uid);
@@ -206,6 +269,24 @@ export const MembersTab = ({
 
   return (
     <div className="space-y-4">
+      {/* Block action dialog */}
+      <Dialog
+        open={!!blockDialog}
+        onOpenChange={(open) => !open && setBlockDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{blockDialog?.title}</DialogTitle>
+            <DialogDescription>{blockDialog?.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockDialog(null)}>
+              Đã hiểu
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Kick member confirmation dialog */}
       <Dialog
         open={!!kickTarget}
@@ -247,16 +328,93 @@ export const MembersTab = ({
         </DialogContent>
       </Dialog>
 
-      {/* Leave trip confirmation dialog */}
+      {/* Leave trip dialog */}
       <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rời chuyến đi</DialogTitle>
             <DialogDescription>
-              Bạn có chắc muốn rời khỏi chuyến đi &quot;{tripName}&quot;? Bạn sẽ
-              không thể xem lịch trình và chi phí nữa.
+              Bạn đang chuẩn bị rời &quot;{tripName}&quot;. Dữ liệu chi phí của
+              bạn vẫn được giữ lại.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Treasurer must transfer role first */}
+          {isTreasurer && !hasTreasurerInGroup && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">Bạn đang là thủ quỹ</p>
+                <p>
+                  Vui lòng chuyển quyền thủ quỹ cho thành viên khác trước khi
+                  rời.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Financial summary */}
+          {currentUserBalance && (
+            <div className="rounded-lg border border-outline-variant bg-surface-dim/50 p-4 text-sm">
+              <p className="mb-3 font-medium text-on-surface">
+                Tóm tắt tài chính của bạn
+              </p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">
+                    Đã đóng vào nhóm:
+                  </span>
+                  <span className="font-medium text-on-surface">
+                    {currentUserBalance.totalPaid.toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">
+                    Tổng phần bạn chi:
+                  </span>
+                  <span className="font-medium text-on-surface">
+                    {currentUserBalance.totalOwed.toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Số dư:</span>
+                  <span
+                    className={`font-semibold ${
+                      currentUserBalance.net >= 0
+                        ? "text-success-600"
+                        : "text-error-600"
+                    }`}
+                  >
+                    {currentUserBalance.net >= 0 ? "+" : ""}
+                    {currentUserBalance.net.toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+              </div>
+              {currentUserBalance.net < 0 && (
+                <p className="mt-2 text-error-600 text-xs">
+                  ⚠ Bạn còn nợ nhóm. Vui lòng thanh toán trước khi rời.
+                </p>
+              )}
+              {currentUserBalance.net > 0 && (
+                <p className="mt-2 text-success-600 text-xs">
+                  ✓ Nhóm còn nợ bạn. Hãy đảm bảo thu hồi trước khi rời.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Participation end date */}
+          <div>
+            <Label>Ngày kết thúc tham gia</Label>
+            <DatePicker
+              value={leaveDate}
+              onChange={setLeaveDate}
+              maxDate={new Date().toISOString().split("T")[0]}
+              className="mt-1"
+            />
+          </div>
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -268,7 +426,7 @@ export const MembersTab = ({
             <Button
               variant="destructive"
               onClick={handleLeaveTrip}
-              disabled={isLeaving}
+              disabled={isLeaving || (isTreasurer && !hasTreasurerInGroup)}
             >
               {isLeaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -283,7 +441,7 @@ export const MembersTab = ({
 
       {/* Non-owner read-only banner */}
       {currentUserRole && currentUserRole !== "owner" && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
+        <div className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
           <Eye className="h-4 w-4 shrink-0" />
           <span>
             Chỉ chủ sở hữu mới quản lý được thành viên.
@@ -301,10 +459,23 @@ export const MembersTab = ({
 
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-on-surface">
-          Thành viên ({memberEntries.length})
+          Thành viên ({activeEntries.length})
         </h3>
         {isOwner && !isInviting && (
-          <Button size="sm" onClick={() => setIsInviting(true)}>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (hasExpenses) {
+                setBlockDialog({
+                  title: "🚫 Không thể thêm thành viên",
+                  message:
+                    "Không thể thêm thành viên khi đã có chi tiêu. Hãy xóa tất cả chi tiêu trước khi mời thêm người.",
+                });
+                return;
+              }
+              setIsInviting(true);
+            }}
+          >
             <UserPlus className="mr-1 h-3.5 w-3.5" />
             Mời thêm
           </Button>
@@ -422,7 +593,7 @@ export const MembersTab = ({
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {memberEntries.map(([uid, member]) => (
+        {activeEntries.map(([uid, member]) => (
           <Card key={uid} className="border-none shadow-sm">
             <CardContent className="flex items-center gap-4 p-4">
               <Avatar className="h-12 w-12">
@@ -507,6 +678,58 @@ export const MembersTab = ({
           </Card>
         ))}
       </div>
+
+      {/* Former members section */}
+      {formerEntries.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Separator className="flex-1" />
+            <span className="flex items-center gap-1 text-on-surface-variant text-xs">
+              <UserMinus className="h-3.5 w-3.5" />
+              Thành viên cũ ({formerEntries.length})
+            </span>
+            <Separator className="flex-1" />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {formerEntries.map(([uid, member]) => {
+              const statusLabel = STATUS_LABELS[member.status ?? "left"];
+              return (
+                <Card
+                  key={uid}
+                  className="border-none bg-surface-dim/40 shadow-none"
+                >
+                  <CardContent className="flex items-center gap-3 p-3">
+                    <Avatar className="h-10 w-10 grayscale">
+                      <AvatarImage
+                        src={member.photoURL}
+                        alt={member.displayName}
+                      />
+                      <AvatarFallback className="bg-neutral-200 text-neutral-500">
+                        {member.displayName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium text-on-surface-variant text-sm">
+                          {member.displayName}
+                        </span>
+                        <Badge className="bg-neutral-100 px-1.5 py-0 text-neutral-500 text-xs">
+                          {statusLabel}
+                        </Badge>
+                      </div>
+                      {member.participationEnd && (
+                        <p className="text-on-surface-variant text-xs">
+                          Đến {member.participationEnd}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

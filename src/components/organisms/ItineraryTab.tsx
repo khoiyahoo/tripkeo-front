@@ -5,6 +5,7 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -85,19 +86,25 @@ const PERIOD_UI: Record<
 > = {
   morning: {
     Icon: Sunrise,
-    iconColor: "text-amber-500",
-    iconBg: "bg-amber-50",
+    iconColor: "text-warning-500",
+    iconBg: "bg-warning-50",
   },
   afternoon: {
     Icon: Sun,
-    iconColor: "text-orange-500",
-    iconBg: "bg-orange-50",
+    iconColor: "text-primary-500",
+    iconBg: "bg-primary-50",
   },
   evening: {
     Icon: Moon,
-    iconColor: "text-indigo-500",
-    iconBg: "bg-indigo-50",
+    iconColor: "text-secondary-700",
+    iconBg: "bg-secondary-100",
   },
+};
+
+const PERIOD_TIME_LABEL: Record<TimePeriod, string> = {
+  morning: "03:00 – 11:59",
+  afternoon: "12:00 – 17:59",
+  evening: "18:00 – 02:59",
 };
 
 // ─── Category Options ────────────────────────────────────────
@@ -131,101 +138,106 @@ const ActivityRow = ({
   return (
     <div
       className={cn(
-        "group flex items-center gap-3 rounded-xl px-3 py-2.5",
-        isDragging && "rotate-[0.5deg] bg-white shadow-xl ring-2 ring-teal-400"
+        "rounded-xl bg-secondary-800/60 p-3 transition-shadow",
+        isDragging && "rotate-[0.5deg] shadow-xl ring-2 ring-primary-300"
       )}
     >
-      {/* Time column */}
-      <div className="flex w-11 shrink-0 flex-col items-start text-right">
-        {activity.startTime ? (
-          <>
-            <span className="font-mono text-on-surface-variant text-xs">
-              {activity.startTime}
-            </span>
-            {activity.endTime && (
-              <span className="block font-mono text-[10px] text-on-surface-variant/50">
-                {activity.endTime}
+      <div className="flex items-start gap-2">
+        {/* Time column */}
+        <div className="flex w-12 shrink-0 flex-col items-end pt-0.5">
+          {activity.startTime ? (
+            <>
+              <span className="font-mono font-semibold text-primary-400 text-xs leading-tight">
+                {activity.startTime}
               </span>
+              {activity.endTime && (
+                <span className="font-mono text-[10px] text-on-surface-variant/50 leading-tight">
+                  {activity.endTime}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="font-mono text-on-surface-variant/30 text-xs">
+              –:–
+            </span>
+          )}
+        </div>
+
+        {/* Vertical connector */}
+        <div className="flex shrink-0 flex-col items-center self-stretch pt-1">
+          <div className="h-2 w-2 shrink-0 rounded-full bg-primary-400" />
+          <div className="my-1 w-px flex-1 bg-secondary-600" />
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="shrink-0 text-sm leading-none">
+                {config.icon}
+              </span>
+              <span className="font-semibold text-on-surface text-sm leading-snug">
+                {activity.title}
+              </span>
+            </div>
+            {canEdit && (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  className="rounded-md p-1 text-on-surface-variant transition-colors hover:bg-secondary-700 hover:text-on-surface"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(activity.id);
+                  }}
+                  className="rounded-md p-1 text-error-400 transition-colors hover:bg-error-900/20 hover:text-error-300"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             )}
-          </>
-        ) : (
-          <span className="font-mono text-on-surface-variant/30 text-xs">
-            – : –
-          </span>
-        )}
-      </div>
+          </div>
 
-      {/* Category dot */}
-      <div
-        className={cn("h-2.5 w-2.5 shrink-0 rounded-full", config.bgColor)}
-      />
+          {(activity.location || activity.mapsUrl) && (
+            <div className="mt-1.5 flex items-center gap-1 text-on-surface-variant text-xs">
+              <MapPin className="h-3 w-3 shrink-0 text-primary-400/70" />
+              {activity.location && (
+                <span className="truncate">{activity.location}</span>
+              )}
+              {activity.mapsUrl && (
+                <a
+                  href={activity.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 shrink-0 text-secondary-400 hover:text-secondary-300"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
 
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="shrink-0 text-sm leading-none">{config.icon}</span>
-          <span className="min-w-0 flex-1 font-medium text-on-surface text-sm leading-snug">
-            {activity.title}
-          </span>
+          {activity.note && (
+            <p className="mt-1 text-on-surface-variant/60 text-xs">
+              *NOTE: {activity.note}
+            </p>
+          )}
+
           {activity.cost !== undefined && activity.cost > 0 && (
-            <span className="shrink-0 font-semibold text-primary-600 text-xs">
+            <span className="mt-1.5 inline-block rounded-md bg-primary-900/30 px-1.5 py-0.5 font-semibold text-primary-400 text-xs">
               {formatCurrency(activity.cost)}
             </span>
           )}
         </div>
-        {(activity.location || activity.note || activity.mapsUrl) && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-on-surface-variant text-xs">
-            {activity.location && (
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3 shrink-0" />
-                <span className="truncate">{activity.location}</span>
-              </span>
-            )}
-            {activity.mapsUrl && (
-              <a
-                href={activity.mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-secondary-600 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Bản đồ
-              </a>
-            )}
-            {activity.note && (
-              <span className="text-on-surface-variant/60">
-                *NOTE: {activity.note}
-              </span>
-            )}
-          </div>
-        )}
       </div>
-
-      {/* Hover action buttons */}
-      {canEdit && (
-        <div className="flex shrink-0 gap-0.5">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            className="rounded-md p-1 text-on-surface-variant"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(activity.id);
-            }}
-            className="rounded-md p-1 text-error-500"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
     </div>
   );
 };
@@ -465,12 +477,12 @@ const ActivityForm = ({
   };
 
   return (
-    <Card className="mt-1 border border-teal-200 shadow-sm">
+    <Card className="mt-1 border border-primary-200 shadow-sm">
       <CardContent className="space-y-3 p-4">
         {/* Draft banner (add mode only) */}
         {mode === "add" && showDraftBanner && (
-          <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2">
-            <span className="flex items-center gap-2 text-amber-800 text-xs">
+          <div className="flex items-center justify-between rounded-lg bg-warning-50 px-3 py-2">
+            <span className="flex items-center gap-2 text-warning-800 text-xs">
               <RotateCcw className="h-3.5 w-3.5" />
               Có bản nháp chưa lưu
             </span>
@@ -478,7 +490,7 @@ const ActivityForm = ({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2 text-amber-700 text-xs"
+                className="h-6 px-2 text-warning-700 text-xs"
                 onClick={() => {
                   if (savedDraft) {
                     setTitle(savedDraft.title);
@@ -694,7 +706,7 @@ const ActivityForm = ({
             rows={2}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="mt-1 resize-none text-sm"
+            className="mt-1 resize-none bg-surface-dim text-sm"
           />
         </div>
 
@@ -755,28 +767,42 @@ const PeriodSection = ({
   const periodKey = `${date}_${period}`;
   const isAdding = addingForPeriod === periodKey;
 
+  // Make empty periods a valid drop target so cross-period DnD works even when
+  // the destination period has no activities (SortableContext has no items to collide with).
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+    id: `period-empty::${date}::${period}`,
+    data: { type: "period-empty", date, period },
+    disabled: activities.length > 0, // only needed when the period is truly empty
+  });
+
   return (
-    <div className="pt-2">
+    <div
+      ref={activities.length === 0 ? setDropRef : undefined}
+      className="flex flex-col gap-3"
+    >
       {/* Period header */}
-      <div className="flex items-center gap-2 px-4 pb-1">
+      <div className="flex items-center gap-2">
         <div
           className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-md",
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
             ui.iconBg
           )}
         >
-          <ui.Icon className={cn("h-3.5 w-3.5", ui.iconColor)} />
+          <ui.Icon className={cn("h-4 w-4", ui.iconColor)} />
         </div>
-        <span className="font-medium text-on-surface text-xs">{label}</span>
+        <span className="font-semibold text-on-surface text-sm">{label}</span>
+        <span className="ml-auto text-on-surface-variant/60 text-xs">
+          {PERIOD_TIME_LABEL[period]}
+        </span>
       </div>
 
       {/* Activity list */}
-      {activities.length > 0 && (
+      {activities.length > 0 ? (
         <SortableContext
           items={activities.map((a) => a.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="pl-6">
+          <div className="flex flex-col gap-2">
             {activities.map((activity) => (
               <SortableActivityRow
                 key={activity.id}
@@ -795,35 +821,41 @@ const PeriodSection = ({
             ))}
           </div>
         </SortableContext>
+      ) : (
+        /* Visual drop-zone shown when period is empty */
+        <div
+          className={cn(
+            "min-h-10 rounded-xl border-2 border-dashed transition-colors",
+            isDropOver
+              ? "border-primary-400 bg-primary-900/20"
+              : "border-secondary-700/30"
+          )}
+        />
       )}
 
       {/* Add button / form */}
       {isAdding ? (
-        <div className="px-4">
-          <ActivityForm
-            mode="add"
-            tripId={tripId}
-            date={date}
-            order={totalActivitiesForDay}
-            initialPeriod={period}
-            onSubmit={onAddActivity}
-            onCancel={() => setAddingForPeriod(null)}
-            onSuccess={() => {
-              // toast is fired inside ActivityForm
-            }}
-          />
-        </div>
+        <ActivityForm
+          mode="add"
+          tripId={tripId}
+          date={date}
+          order={totalActivitiesForDay}
+          initialPeriod={period}
+          onSubmit={onAddActivity}
+          onCancel={() => setAddingForPeriod(null)}
+          onSuccess={() => {
+            // toast is fired inside ActivityForm
+          }}
+        />
       ) : canAdd ? (
-        <div className="px-4 pt-1.5 pb-3">
-          <button
-            type="button"
-            onClick={() => setAddingForPeriod(periodKey)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-teal-300 border-dashed py-2.5 font-medium text-sm text-teal-600 transition-colors hover:border-teal-400 hover:bg-teal-50"
-          >
-            <Plus className="h-4 w-4" />
-            Thêm hoạt động
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAddingForPeriod(periodKey)}
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border-2 border-primary-600/50 border-dashed py-3 font-medium text-primary-400 text-sm transition-colors hover:border-primary-500 hover:bg-primary-900/20"
+        >
+          <Plus className="h-4 w-4" />
+          Thêm hoạt động
+        </button>
       ) : null}
     </div>
   );
@@ -920,8 +952,56 @@ export const ItineraryTab = ({
     if (!over || active.id === over.id) return;
 
     const activeEntry = activityMap.get(String(active.id));
+    if (!activeEntry) return;
+
+    // Handle drop onto an empty period (useDroppable zone, no activity items to target)
+    const overData = (over.data?.current ?? {}) as {
+      type?: string;
+      date?: string;
+      period?: string;
+    };
+    if (overData.type === "period-empty" && overData.date && overData.period) {
+      const targetDate = overData.date;
+      const targetPeriod = overData.period as TimePeriod;
+      // No-op if already in this period
+      if (
+        targetDate === activeEntry.date &&
+        targetPeriod === activeEntry.period
+      )
+        return;
+      const newStartTime = TIME_PERIOD_CONFIG[targetPeriod].defaultTime;
+      if (targetDate !== activeEntry.date) {
+        // Cross-day: remove from source day, insert as first item in target day
+        const sourceActs = (activitiesByDate[activeEntry.date] ?? []).filter(
+          (a) => a.id !== String(active.id)
+        );
+        onBatchUpdateOrders([
+          ...sourceActs.map((a, i) => ({ id: a.id, order: i })),
+          {
+            id: String(active.id),
+            order: 0,
+            startTime: newStartTime,
+            date: targetDate,
+          },
+        ]);
+      } else {
+        // Same day, different period: update start time so period classification changes
+        const dayActs = activitiesByDate[activeEntry.date] ?? [];
+        const others = dayActs.filter((a) => a.id !== String(active.id));
+        onBatchUpdateOrders([
+          ...others.map((a, i) => ({ id: a.id, order: i })),
+          {
+            id: String(active.id),
+            order: others.length,
+            startTime: newStartTime,
+          },
+        ]);
+      }
+      return;
+    }
+
     const overEntry = activityMap.get(String(over.id));
-    if (!activeEntry || !overEntry) return;
+    if (!overEntry) return;
 
     const sourceDate = activeEntry.date;
     const targetDate = overEntry.date;
@@ -990,7 +1070,7 @@ export const ItineraryTab = ({
       <div className="space-y-4">
         {/* Read-only banner for member/treasurer */}
         {(currentUserRole === "member" || currentUserRole === "treasurer") && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm">
+          <div className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
             <Eye className="h-4 w-4 shrink-0" />
             <span>
               Bạn chỉ có quyền xem lịch trình.
@@ -1040,11 +1120,11 @@ export const ItineraryTab = ({
           return (
             <div
               key={day.date}
-              className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5"
+              className="overflow-hidden rounded-2xl bg-secondary-900 shadow-sm ring-1 ring-black/5"
             >
               {/* Day header */}
               <div className="flex items-center gap-3 border-black/5 border-b px-4 py-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-500 font-bold text-sm text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-sm text-white">
                   {day.dayNumber}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1056,32 +1136,33 @@ export const ItineraryTab = ({
                   </p>
                 </div>
                 {dayActivities.length > 0 && (
-                  <span className="shrink-0 rounded-full bg-surface-dim px-2.5 py-0.5 text-on-surface-variant text-xs">
+                  <span className="shrink-0 rounded-full bg-primary-700 px-2.5 py-0.5 text-white text-xs">
                     {dayActivities.length} hoạt động
                   </span>
                 )}
               </div>
 
-              {/* Period sections */}
-              <div className="divide-y divide-black/[0.04]">
+              {/* Period sections – 3 columns on desktop, stacked on mobile */}
+              <div className="grid grid-cols-1 divide-y divide-black/5 md:grid-cols-3 md:divide-x md:divide-y-0">
                 {TIME_PERIODS.map((p) => (
-                  <PeriodSection
-                    key={p}
-                    period={p}
-                    activities={byPeriod[p]}
-                    tripId={tripId}
-                    date={day.date}
-                    totalActivitiesForDay={dayActivities.length}
-                    onAddActivity={onAddActivity}
-                    onUpdateActivity={onUpdateActivity}
-                    onDeleteActivity={setConfirmDeleteId}
-                    addingForPeriod={addingForPeriod}
-                    setAddingForPeriod={setAddingForPeriod}
-                    editingActivityId={editingActivityId}
-                    setEditingActivityId={setEditingActivityId}
-                    canEditActivity={canEditActivity}
-                    canAdd={canAdd}
-                  />
+                  <div key={p} className="p-4">
+                    <PeriodSection
+                      period={p}
+                      activities={byPeriod[p]}
+                      tripId={tripId}
+                      date={day.date}
+                      totalActivitiesForDay={dayActivities.length}
+                      onAddActivity={onAddActivity}
+                      onUpdateActivity={onUpdateActivity}
+                      onDeleteActivity={setConfirmDeleteId}
+                      addingForPeriod={addingForPeriod}
+                      setAddingForPeriod={setAddingForPeriod}
+                      editingActivityId={editingActivityId}
+                      setEditingActivityId={setEditingActivityId}
+                      canEditActivity={canEditActivity}
+                      canAdd={canAdd}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -1130,7 +1211,7 @@ export const ItineraryTab = ({
       {/* Drag overlay */}
       <DragOverlay>
         {draggedActivity && (
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl ring-2 ring-teal-400">
+          <div className="w-full max-w-md rounded-xl bg-secondary-800 shadow-xl ring-2 ring-primary-400">
             <ActivityRow
               activity={draggedActivity}
               onEdit={() => {

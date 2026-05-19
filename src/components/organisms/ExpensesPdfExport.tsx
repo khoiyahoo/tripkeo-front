@@ -10,28 +10,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { SettlementResult } from "@/services/expenseService";
+import type { ExpenseSummary } from "@/services/expenseService";
 import type { ExpensePdfMeta } from "@/utils/expensePdf";
 import { ExpensePdfDocument } from "@/utils/expensePdf";
 
-import type { ExpenseWithId } from "@/types/firestore";
+import type {
+  DebtSettlement,
+  ExpenseWithId,
+  MemberBalance,
+} from "@/types/firestore";
 
 export type { ExpensePdfMeta };
 
 interface ExpensesPdfExportProps {
   meta: ExpensePdfMeta;
   expenses: ExpenseWithId[];
-  budget: number;
-  totalGroupSpent: number;
-  settlement: SettlementResult;
+  summary: ExpenseSummary;
+  balances: MemberBalance[];
+  debts: DebtSettlement[];
 }
 
 export const ExpensesPdfExport = ({
   meta,
   expenses,
-  budget,
-  totalGroupSpent,
-  settlement,
+  summary,
+  balances,
+  debts,
 }: ExpensesPdfExportProps) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,9 +57,9 @@ export const ExpensesPdfExport = ({
       <ExpensePdfDocument
         meta={meta}
         expenses={expenses}
-        budget={budget}
-        totalGroupSpent={totalGroupSpent}
-        settlement={settlement}
+        summary={summary}
+        balances={balances}
+        debts={debts}
       />
     ).toBlob();
 
@@ -139,9 +143,9 @@ export const ExpensesPdfExport = ({
                 <ExpensePdfDocument
                   meta={meta}
                   expenses={expenses}
-                  budget={budget}
-                  totalGroupSpent={totalGroupSpent}
-                  settlement={settlement}
+                  summary={summary}
+                  balances={balances}
+                  debts={debts}
                 />
               </PDFViewer>
             )}

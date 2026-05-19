@@ -17,9 +17,9 @@ import type {
   CreateExpenseInput,
   DebtSettlement,
   ExpenseDoc,
-  ExpensePaidByType,
   ExpenseWithId,
   MemberBalance,
+  SplitMethod,
   TripMemberInfo,
 } from "@/types/firestore";
 
@@ -34,21 +34,66 @@ const toExpenseWithId = (
   ...(data as unknown as ExpenseDoc),
 });
 
-// ─── 4-case helper ───────────────────────────────────────────
-// Case 1: group_fund, all members   → simple, deduct from fund
-// Case 2: group_fund, partial       → deduct + refund non-participants
-// Case 3: member_shared, all members → fund reimburses the payer
-// Case 4: member_shared, partial    → outside the system, no fund impact
+// ─── Active-member helper ─────────────────────────────────────
 
-export function doesAffectGroupFund(
-  paidByType: ExpensePaidByType,
-  splitBetweenCount: number,
-  totalMembers: number
-): boolean {
-  if (paidByType === "group_fund") return true; // Case 1 & 2
-  if (paidByType === "member_shared" && splitBetweenCount === totalMembers)
-    return true; // Case 3
-  return false; // Case 4
+/** Returns only members with status "active" (or undefined, for legacy records). */
+export const getActiveMembers = (
+  members: Record<string, TripMemberInfo>
+): Record<string, TripMemberInfo> =>
+  Object.fromEntries(
+    Object.entries(members).filter(
+      ([, m]) => (m.status ?? "active") === "active"
+    )
+  );
+
+// ─── Split calculation ───────────────────────────────────────
+
+/**
+ * Given an expense, returns a map of uid → amount owed by each participant.
+ */
+export function getOwedPerPerson(
+  amount: number,
+  splitBetween: string[],
+  splitMethod: SplitMethod,
+  splitDetails?: Record<string, number>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  if (splitBetween.length === 0) return result;
+
+  switch (splitMethod) {
+    case "equal": {
+      const share = amount / splitBetween.length;
+      for (const uid of splitBetween) result[uid] = share;
+      break;
+    }
+    case "percentage": {
+      for (const uid of splitBetween) {
+        const pct = splitDetails?.[uid] ?? 0;
+        result[uid] = (amount * pct) / 100;
+      }
+      break;
+    }
+    case "amount": {
+      for (const uid of splitBetween) {
+        result[uid] = splitDetails?.[uid] ?? 0;
+      }
+      break;
+    }
+    case "shares": {
+      const totalShares = splitBetween.reduce(
+        (sum, uid) => sum + (splitDetails?.[uid] ?? 1),
+        0
+      );
+      if (totalShares === 0) break;
+      for (const uid of splitBetween) {
+        const shares = splitDetails?.[uid] ?? 1;
+        result[uid] = (amount * shares) / totalShares;
+      }
+      break;
+    }
+  }
+
+  return result;
 }
 
 // ─── CRUD ────────────────────────────────────────────────────
@@ -56,22 +101,21 @@ export function doesAffectGroupFund(
 export const createExpense = async (
   tripId: string,
   input: CreateExpenseInput,
-  userId: string,
-  totalMembers: number
+  userId: string
 ): Promise<string> => {
-  const expenseData = {
+  const expenseData: Omit<ExpenseDoc, "createdAt"> & {
+    createdAt: ReturnType<typeof serverTimestamp>;
+  } = {
     description: input.description,
     amount: input.amount,
     category: input.category,
     date: Timestamp.fromDate(new Date(input.date)),
-    paidBy: input.paidBy,
+    paidByUid: input.paidByUid,
+    paidByName: input.paidByName,
     splitBetween: input.splitBetween,
-    totalMembers,
-    affectsGroupFund: doesAffectGroupFund(
-      input.paidBy.type,
-      input.splitBetween.length,
-      totalMembers
-    ),
+    splitMethod: input.splitMethod,
+    splitDetails: input.splitDetails ?? {},
+    receiptUrl: input.receiptUrl ?? "",
     note: input.note ?? "",
     createdBy: userId,
     createdAt: serverTimestamp(),
@@ -84,30 +128,25 @@ export const createExpense = async (
 export const updateExpense = async (
   tripId: string,
   expenseId: string,
-  data: Partial<CreateExpenseInput>,
-  totalMembers: number
+  data: Partial<CreateExpenseInput>
 ): Promise<void> => {
   const updateData: Record<string, unknown> = {};
 
   if (data.description !== undefined) updateData.description = data.description;
   if (data.amount !== undefined) updateData.amount = data.amount;
   if (data.category !== undefined) updateData.category = data.category;
-  if (data.paidBy !== undefined) updateData.paidBy = data.paidBy;
-  if (data.splitBetween !== undefined)
-    updateData.splitBetween = data.splitBetween;
-  if (data.note !== undefined) updateData.note = data.note;
   if (data.date !== undefined)
     updateData.date = Timestamp.fromDate(new Date(data.date));
+  if (data.paidByUid !== undefined) updateData.paidByUid = data.paidByUid;
+  if (data.paidByName !== undefined) updateData.paidByName = data.paidByName;
+  if (data.splitBetween !== undefined)
+    updateData.splitBetween = data.splitBetween;
+  if (data.splitMethod !== undefined) updateData.splitMethod = data.splitMethod;
+  if (data.splitDetails !== undefined)
+    updateData.splitDetails = data.splitDetails;
+  if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl;
+  if (data.note !== undefined) updateData.note = data.note;
 
-  // Always recompute affectsGroupFund + totalMembers on update
-  updateData.totalMembers = totalMembers;
-  if (data.paidBy && data.splitBetween) {
-    updateData.affectsGroupFund = doesAffectGroupFund(
-      data.paidBy.type,
-      data.splitBetween.length,
-      totalMembers
-    );
-  }
   updateData.updatedAt = serverTimestamp();
 
   await updateDoc(doc(db, "trips", tripId, "expenses", expenseId), updateData);
@@ -139,226 +178,36 @@ export const subscribeToExpenses = (
   );
 };
 
-// ─── Settlement calculation (4-case model) ───────────────────
-
-export interface SettlementResult {
-  groupFundSpent: number;
-  totalReimburseToMembers: number;
-  totalRefundNonParticipants: number;
-  reimburseToMembers: Array<{ uid: string; name: string; amount: number }>;
-  refundToNonParticipants: Array<{ uid: string; name: string; amount: number }>;
-  fundRemaining: number;
-  perPersonReturn: number;
-  perPersonOwes: number;
-}
-
-export function calculateSettlement(
-  expenses: ExpenseWithId[],
-  members: Record<string, TripMemberInfo>,
-  budgetTotal: number
-): SettlementResult {
-  const memberIds = Object.keys(members);
-  const memberCount = memberIds.length;
-
-  let groupFundSpent = 0;
-  let totalReimburseToMembers = 0;
-
-  const refundMap: Record<string, number> = {};
-  const reimburseMap: Record<string, number> = {};
-
-  for (const uid of memberIds) {
-    refundMap[uid] = 0;
-    reimburseMap[uid] = 0;
-  }
-
-  for (const exp of expenses) {
-    const paidByType = exp.paidBy?.type ?? "group_fund";
-    const participantIds = exp.splitBetween ?? [];
-    const nonParticipantIds = memberIds.filter(
-      (uid) => !participantIds.includes(uid)
-    );
-
-    if (paidByType === "group_fund") {
-      // Case 1 & 2
-      groupFundSpent += exp.amount;
-
-      // Case 2: refund each non-participant their per-capita share
-      if (nonParticipantIds.length > 0) {
-        const refundPerPerson = exp.amount / memberCount;
-        for (const uid of nonParticipantIds) {
-          refundMap[uid] = (refundMap[uid] ?? 0) + refundPerPerson;
-        }
-      }
-    }
-
-    if (paidByType === "member_shared") {
-      if (participantIds.length === memberCount) {
-        // Case 3: fund reimburses the payer
-        const payerId = exp.paidBy?.userId;
-        if (payerId) {
-          reimburseMap[payerId] = (reimburseMap[payerId] ?? 0) + exp.amount;
-          totalReimburseToMembers += exp.amount;
-        }
-      }
-      // Case 4: no fund impact — skip
-    }
-  }
-
-  const totalRefundNonParticipants = Object.values(refundMap).reduce(
-    (s, v) => s + v,
-    0
-  );
-
-  const fundRemaining =
-    budgetTotal -
-    groupFundSpent -
-    totalReimburseToMembers -
-    totalRefundNonParticipants;
-
-  const perPersonReturn =
-    fundRemaining > 0 && memberCount > 0 ? fundRemaining / memberCount : 0;
-  const perPersonOwes =
-    fundRemaining < 0 && memberCount > 0
-      ? Math.abs(fundRemaining) / memberCount
-      : 0;
-
-  const reimburseToMembers = Object.entries(reimburseMap)
-    .filter(([, amount]) => amount > 0)
-    .map(([uid, amount]) => ({
-      uid,
-      name: members[uid]?.displayName ?? "Unknown",
-      amount,
-    }))
-    .sort((a, b) => b.amount - a.amount);
-
-  const refundToNonParticipants = Object.entries(refundMap)
-    .filter(([, amount]) => amount > 0)
-    .map(([uid, amount]) => ({
-      uid,
-      name: members[uid]?.displayName ?? "Unknown",
-      amount,
-    }))
-    .sort((a, b) => b.amount - a.amount);
-
-  return {
-    groupFundSpent,
-    totalReimburseToMembers,
-    totalRefundNonParticipants,
-    reimburseToMembers,
-    refundToNonParticipants,
-    fundRemaining,
-    perPersonReturn,
-    perPersonOwes,
-  };
-}
-
-// ─── Budget status ───────────────────────────────────────────
-
-export interface BudgetStatus {
-  totalGroupSpent: number;
-  /** Case-2 refund obligations owed to non-participants */
-  totalRefundNonParticipants: number;
-  remaining: number; // = budget − totalGroupSpent − totalRefundNonParticipants (matches settlement.fundRemaining)
-  percentUsed: number;
-  isOverBudget: boolean;
-  isWarning: boolean; // > 80%
-  collectMore: number; // per person, if over budget
-}
-
-export const getBudgetStatus = (
-  expenses: ExpenseWithId[],
-  budgetTotal: number,
-  memberCount: number
-): BudgetStatus => {
-  // Only count fund-affecting expenses (Cases 1, 2, 3)
-  let totalGroupSpent = 0;
-  // Case 2: group_fund with partial participants → non-participants get their
-  // per-capita share refunded from the fund. This is a fund obligation that
-  // must be deducted from remaining to match calculateSettlement.fundRemaining.
-  let totalRefundNonParticipants = 0;
-
-  for (const e of expenses) {
-    const type = e.paidBy?.type ?? "group_fund";
-    if (type === "group_fund") {
-      totalGroupSpent += e.amount;
-      const splitCount = e.splitBetween?.length ?? memberCount;
-      const nonParticipants = memberCount - splitCount;
-      if (nonParticipants > 0 && memberCount > 0) {
-        totalRefundNonParticipants +=
-          nonParticipants * (e.amount / memberCount);
-      }
-    } else if (
-      type === "member_shared" &&
-      (e.splitBetween?.length ?? 0) === memberCount
-    ) {
-      totalGroupSpent += e.amount; // Case 3
-    }
-  }
-
-  const remaining = budgetTotal - totalGroupSpent - totalRefundNonParticipants;
-  const percentUsed =
-    budgetTotal > 0
-      ? ((totalGroupSpent + totalRefundNonParticipants) / budgetTotal) * 100
-      : 0;
-  const isOverBudget = remaining < 0;
-  const isWarning = percentUsed >= 80 && !isOverBudget;
-  const collectMore =
-    isOverBudget && memberCount > 0 ? Math.abs(remaining) / memberCount : 0;
-
-  return {
-    totalGroupSpent,
-    totalRefundNonParticipants,
-    remaining,
-    percentUsed,
-    isOverBudget,
-    isWarning,
-    collectMore,
-  };
-};
-
-// ─── Per-person balance (for PDF export) ─────────────────────
+// ─── Per-person balance ──────────────────────────────────────
 
 export const calculateBalances = (
   expenses: ExpenseWithId[],
-  members: Record<string, TripMemberInfo>,
-  budgetTotal: number
+  members: Record<string, TripMemberInfo>
 ): MemberBalance[] => {
   const memberIds = Object.keys(members);
-  const memberCount = memberIds.length;
-  const perPerson = memberCount > 0 ? budgetTotal / memberCount : 0;
 
   const paid: Record<string, number> = {};
   const owed: Record<string, number> = {};
 
   for (const uid of memberIds) {
-    paid[uid] = perPerson;
+    paid[uid] = 0;
     owed[uid] = 0;
   }
 
-  // Only consider fund-affecting expenses (exclude Case 4)
   for (const exp of expenses) {
-    const paidByType = exp.paidBy?.type ?? "group_fund";
-    const participants = exp.splitBetween ?? [];
-    const affects = doesAffectGroupFund(
-      paidByType,
-      participants.length,
-      memberCount
-    );
-    if (!affects) continue;
-
-    const payerId = exp.paidBy?.userId;
-
-    if (
-      paidByType === "member_shared" &&
-      payerId &&
-      paid[payerId] !== undefined
-    ) {
-      paid[payerId] += exp.amount;
+    const payerUid = exp.paidByUid;
+    if (paid[payerUid] !== undefined) {
+      paid[payerUid] += exp.amount;
     }
 
-    const share =
-      participants.length > 0 ? exp.amount / participants.length : 0;
-    for (const uid of participants) {
+    const owedMap = getOwedPerPerson(
+      exp.amount,
+      exp.splitBetween ?? [],
+      exp.splitMethod ?? "equal",
+      exp.splitDetails
+    );
+
+    for (const [uid, share] of Object.entries(owedMap)) {
       if (owed[uid] !== undefined) {
         owed[uid] += share;
       }
@@ -375,14 +224,16 @@ export const calculateBalances = (
   }));
 };
 
+// ─── Settlement: minimize transactions ───────────────────────
+
 export const calculateDebts = (balances: MemberBalance[]): DebtSettlement[] => {
   const creditors = balances
-    .filter((b) => b.net > 0)
+    .filter((b) => b.net > 0.5)
     .map((b) => ({ ...b }))
     .sort((a, b) => b.net - a.net);
 
   const debtors = balances
-    .filter((b) => b.net < 0)
+    .filter((b) => b.net < -0.5)
     .map((b) => ({ ...b, net: Math.abs(b.net) }))
     .sort((a, b) => b.net - a.net);
 
@@ -392,7 +243,7 @@ export const calculateDebts = (balances: MemberBalance[]): DebtSettlement[] => {
 
   while (ci < creditors.length && di < debtors.length) {
     const amount = Math.min(creditors[ci].net, debtors[di].net);
-    if (amount > 0) {
+    if (amount > 0.5) {
       settlements.push({
         fromUid: debtors[di].uid,
         fromName: debtors[di].displayName,
@@ -404,9 +255,74 @@ export const calculateDebts = (balances: MemberBalance[]): DebtSettlement[] => {
     creditors[ci].net -= amount;
     debtors[di].net -= amount;
 
-    if (creditors[ci].net < 1) ci++;
-    if (debtors[di].net < 1) di++;
+    if (creditors[ci].net < 0.5) ci++;
+    if (debtors[di].net < 0.5) di++;
   }
 
   return settlements;
+};
+
+// ─── Summary stats ───────────────────────────────────────────
+
+export interface ExpenseSummary {
+  totalSpent: number;
+  expenseCount: number;
+  dateRangeDays: number;
+}
+
+export const getExpenseSummary = (
+  expenses: ExpenseWithId[]
+): ExpenseSummary => {
+  const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
+  const expenseCount = expenses.length;
+
+  let dateRangeDays = 0;
+  if (expenses.length > 0) {
+    const dates = expenses
+      .map((e) => {
+        if (
+          e.date &&
+          typeof (e.date as unknown as { toDate: () => Date }).toDate ===
+            "function"
+        ) {
+          return (e.date as unknown as { toDate: () => Date })
+            .toDate()
+            .getTime();
+        }
+        return 0;
+      })
+      .filter((d) => d > 0);
+
+    if (dates.length > 0) {
+      const min = Math.min(...dates);
+      const max = Math.max(...dates);
+      dateRangeDays = Math.ceil((max - min) / (1000 * 60 * 60 * 24)) + 1;
+    }
+  }
+
+  return { totalSpent, expenseCount, dateRangeDays };
+};
+
+// ─── Member-expense relationship check ───────────────────────
+
+export interface MemberExpenseInfo {
+  hasExpenses: boolean;
+  asPayer: ExpenseWithId[];
+  asParticipant: ExpenseWithId[];
+}
+
+/** Check if a member is linked to any expenses (as payer or participant). */
+export const getMemberExpenseInfo = (
+  expenses: ExpenseWithId[],
+  memberUid: string
+): MemberExpenseInfo => {
+  const asPayer = expenses.filter((e) => e.paidByUid === memberUid);
+  const asParticipant = expenses.filter(
+    (e) => e.splitBetween?.includes(memberUid) && e.paidByUid !== memberUid
+  );
+  return {
+    hasExpenses: asPayer.length > 0 || asParticipant.length > 0,
+    asPayer,
+    asParticipant,
+  };
 };

@@ -1,9 +1,9 @@
 import { Loader2, X } from "lucide-react";
 import { useState } from "react";
 
+import { DatePicker } from "@/components/molecules/DatePicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -18,17 +18,15 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 
 import type {
   CreateExpenseInput,
-  ExpensePaidByType,
   ExpenseWithId,
+  SplitMethod,
   TripMemberInfo,
 } from "@/types/firestore";
 import type { ExpenseCategory } from "@/types/trip";
 
-// Convert Firestore Timestamp or string → YYYY-MM-DD for <input type="date">
 const toDateInputStr = (ts: unknown): string => {
-  if (ts && typeof (ts as { toDate: () => Date }).toDate === "function") {
+  if (ts && typeof (ts as { toDate: () => Date }).toDate === "function")
     return (ts as { toDate: () => Date }).toDate().toISOString().split("T")[0];
-  }
   if (typeof ts === "string") return ts;
   return new Date().toISOString().split("T")[0];
 };
@@ -43,9 +41,15 @@ const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: "other", label: "Khác" },
 ];
 
+const SPLIT_METHODS: { value: SplitMethod; label: string }[] = [
+  { value: "equal", label: "Đều" },
+  { value: "percentage", label: "Phần trăm" },
+  { value: "amount", label: "Số tiền" },
+  { value: "shares", label: "Phần" },
+];
+
 interface AddExpenseFormProps {
   members: Record<string, TripMemberInfo>;
-  /** Pre-fill for edit mode. When provided, title and submit text change. */
   initialData?: ExpenseWithId;
   onSubmit: (input: CreateExpenseInput) => Promise<unknown>;
   onCancel: () => void;
@@ -58,6 +62,10 @@ export const AddExpenseForm = ({
   onCancel,
 }: AddExpenseFormProps) => {
   const isEditMode = !!initialData;
+  const activeMemberIds = Object.entries(members)
+    .filter(([, m]) => (m.status ?? "active") === "active")
+    .map(([uid]) => uid);
+
   const [description, setDescription] = useState(
     initialData?.description ?? ""
   );
@@ -72,21 +80,20 @@ export const AddExpenseForm = ({
       ? toDateInputStr(initialData.date)
       : new Date().toISOString().split("T")[0]
   );
-  const [paidByType, setPaidByType] = useState<ExpensePaidByType>(
-    initialData?.paidBy.type ?? "group_fund"
+  const [paidByUid, setPaidByUid] = useState(initialData?.paidByUid ?? "");
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>(
+    initialData?.splitMethod ?? "equal"
   );
-  const [selectedMemberId, setSelectedMemberId] = useState(
-    initialData?.paidBy.userId ?? ""
+  const [splitBetween, setSplitBetween] = useState<string[]>(
+    initialData?.splitBetween ?? activeMemberIds
+  );
+  const [splitDetails, setSplitDetails] = useState<Record<string, number>>(
+    initialData?.splitDetails ?? {}
   );
   const [note, setNote] = useState(initialData?.note ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const memberIds = Object.keys(members);
-  const [splitBetween, setSplitBetween] = useState<string[]>(
-    initialData?.splitBetween ?? memberIds
-  );
-
-  const needsMemberSelect = paidByType === "member_shared";
+  const amount = Number(amountRaw) || 0;
 
   const toggleMember = (uid: string) => {
     setSplitBetween((prev) =>
@@ -94,46 +101,85 @@ export const AddExpenseForm = ({
     );
   };
 
+  const updateDetail = (uid: string, val: number) => {
+    setSplitDetails((prev) => ({ ...prev, [uid]: val }));
+  };
+
+  // Validation
+  const splitValid = (() => {
+    if (splitBetween.length === 0) return false;
+    if (splitMethod === "equal") return true;
+    if (splitMethod === "percentage") {
+      const total = splitBetween.reduce(
+        (s, uid) => s + (splitDetails[uid] ?? 0),
+        0
+      );
+      return Math.abs(total - 100) < 0.01;
+    }
+    if (splitMethod === "amount") {
+      const total = splitBetween.reduce(
+        (s, uid) => s + (splitDetails[uid] ?? 0),
+        0
+      );
+      return amount > 0 && Math.abs(total - amount) < 1;
+    }
+    if (splitMethod === "shares") {
+      return splitBetween.every((uid) => (splitDetails[uid] ?? 1) >= 1);
+    }
+    return true;
+  })();
+
+  const canSubmit =
+    description.trim() &&
+    amount > 0 &&
+    paidByUid &&
+    splitValid &&
+    !isSubmitting;
+
   const handleSubmit = async () => {
-    if (!description.trim() || !amountRaw) return;
-    if (needsMemberSelect && !selectedMemberId) return;
-
+    if (!canSubmit) return;
     setIsSubmitting(true);
-
-    const paidBy =
-      paidByType === "group_fund"
-        ? {
-            type: "group_fund" as const,
-            userId: null,
-            displayName: "Quỹ chung",
-          }
-        : {
-            type: paidByType,
-            userId: selectedMemberId,
-            displayName: members[selectedMemberId]?.displayName ?? "",
-          };
-
-    const finalSplit = splitBetween;
-
     await onSubmit({
       description: description.trim(),
-      amount: Number(amountRaw),
+      amount,
       category,
       date,
-      paidBy,
-      splitBetween: finalSplit,
+      paidByUid,
+      paidByName: members[paidByUid]?.displayName ?? "",
+      splitBetween,
+      splitMethod,
+      splitDetails: splitMethod !== "equal" ? splitDetails : undefined,
       note: note.trim() || undefined,
     });
     setIsSubmitting(false);
     onCancel();
   };
 
+  // Split detail helper text
+  const splitSummary = (() => {
+    if (splitMethod === "percentage") {
+      const total = splitBetween.reduce(
+        (s, uid) => s + (splitDetails[uid] ?? 0),
+        0
+      );
+      return `Tổng: ${total}% ${Math.abs(total - 100) < 0.01 ? "✓" : `(cần 100%)`}`;
+    }
+    if (splitMethod === "amount") {
+      const total = splitBetween.reduce(
+        (s, uid) => s + (splitDetails[uid] ?? 0),
+        0
+      );
+      return `Tổng: ${total.toLocaleString("vi-VN")}đ ${Math.abs(total - amount) < 1 ? "✓" : `/ ${amount.toLocaleString("vi-VN")}đ`}`;
+    }
+    return null;
+  })();
+
   return (
     <Card className="border border-primary-200 shadow-sm">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between">
           <h4 className="font-semibold text-on-surface text-sm">
-            {isEditMode ? "Chỉnh sửa chi phí" : "Thêm chi phí"}
+            {isEditMode ? "Chỉnh sửa chi tiêu" : "Thêm chi tiêu"}
           </h4>
           <Button
             variant="ghost"
@@ -145,21 +191,19 @@ export const AddExpenseForm = ({
           </Button>
         </div>
 
-        {/* Description */}
         <div>
-          <Label>Mô tả *</Label>
+          <Label>Tiêu đề *</Label>
           <Input
-            placeholder="VD: Vé máy bay"
+            placeholder="VD: Bữa sáng ở quán X"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="mt-1"
           />
         </div>
 
-        {/* Amount + Date */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Số tiền *</Label>
+            <Label>Số tiền (VNĐ) *</Label>
             <Input
               inputMode="numeric"
               placeholder="0"
@@ -170,16 +214,134 @@ export const AddExpenseForm = ({
           </div>
           <div>
             <Label>Ngày</Label>
-            <Input
-              type="date"
+            <DatePicker
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
               className="mt-1"
+              placeholder="Chọn ngày"
             />
           </div>
         </div>
 
-        {/* Category */}
+        <div>
+          <Label>Người trả *</Label>
+          <Select value={paidByUid} onValueChange={setPaidByUid}>
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Chọn người trả" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeMemberIds.map((uid) => (
+                <SelectItem key={uid} value={uid}>
+                  {members[uid]?.displayName ?? uid}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Người tham gia</Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {activeMemberIds.map((uid) => (
+              <button
+                key={uid}
+                type="button"
+                onClick={() => toggleMember(uid)}
+                className={`rounded-full border px-3 py-1 font-medium text-xs transition-colors ${splitBetween.includes(uid) ? "border-primary-500 bg-primary-100 text-primary-800" : "border-outline-variant bg-surface text-on-surface-variant"}`}
+              >
+                {members[uid]?.displayName ?? uid}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label>Cách chia</Label>
+          <RadioGroup
+            value={splitMethod}
+            onValueChange={(v) => setSplitMethod(v as SplitMethod)}
+            className="mt-2 flex gap-3"
+          >
+            {SPLIT_METHODS.map((m) => (
+              <div key={m.value} className="flex items-center gap-1.5">
+                <RadioGroupItem value={m.value} id={`split-${m.value}`} />
+                <Label
+                  htmlFor={`split-${m.value}`}
+                  className="cursor-pointer font-normal text-sm"
+                >
+                  {m.label}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+
+        {splitMethod !== "equal" && splitBetween.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-dim/50 p-3">
+            {splitBetween.map((uid) => {
+              // Always store as number, but display as formatted string
+              const rawNum = splitDetails[uid];
+              let displayValue = "";
+              if (
+                splitMethod === "amount" &&
+                typeof rawNum === "number" &&
+                !Number.isNaN(rawNum)
+              ) {
+                displayValue = formatCurrencyInput(String(rawNum));
+              } else if (
+                splitMethod === "percentage" &&
+                typeof rawNum === "number" &&
+                !Number.isNaN(rawNum)
+              ) {
+                displayValue = rawNum.toLocaleString("vi-VN");
+              } else if (typeof rawNum === "number" && !Number.isNaN(rawNum)) {
+                displayValue = String(rawNum);
+              } else {
+                displayValue = "";
+              }
+              return (
+                <div key={uid} className="flex items-center gap-2">
+                  <span className="w-28 truncate text-on-surface text-sm">
+                    {members[uid]?.displayName ?? uid}
+                  </span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder={splitMethod === "shares" ? "1" : "0"}
+                    value={displayValue}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (
+                        splitMethod === "amount" ||
+                        splitMethod === "percentage"
+                      ) {
+                        val = parseCurrencyInput(val);
+                        updateDetail(uid, val ? Number(val) : 0);
+                      } else {
+                        updateDetail(uid, Number(val) || 0);
+                      }
+                    }}
+                    className="h-8 w-100 text-sm"
+                  />
+                  <span className="text-on-surface-variant text-xs">
+                    {splitMethod === "percentage"
+                      ? "%"
+                      : splitMethod === "amount"
+                        ? "đ"
+                        : "phần"}
+                  </span>
+                </div>
+              );
+            })}
+            {splitSummary && (
+              <p
+                className={`text-xs ${splitValid ? "text-success-600" : "text-error-600"}`}
+              >
+                {splitSummary}
+              </p>
+            )}
+          </div>
+        )}
+
         <div>
           <Label>Danh mục</Label>
           <Select
@@ -199,80 +361,6 @@ export const AddExpenseForm = ({
           </Select>
         </div>
 
-        {/* Payment type (radio) */}
-        <div>
-          <Label>Nguồn chi *</Label>
-          <RadioGroup
-            value={paidByType}
-            onValueChange={(v) => setPaidByType(v as ExpensePaidByType)}
-            className="mt-2 space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <RadioGroupItem value="group_fund" id="pbt-group" />
-              <Label htmlFor="pbt-group" className="cursor-pointer font-normal">
-                💰 Quỹ chung
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem value="member_shared" id="pbt-shared" />
-              <Label
-                htmlFor="pbt-shared"
-                className="cursor-pointer font-normal"
-              >
-                🤝 Thành viên trả hộ
-              </Label>
-            </div>
-          </RadioGroup>
-        </div>
-
-        {/* Member select (for member_shared) */}
-        {needsMemberSelect && (
-          <div>
-            <Label>Ai trả hộ?</Label>
-            <Select
-              value={selectedMemberId}
-              onValueChange={setSelectedMemberId}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Chọn thành viên" />
-              </SelectTrigger>
-              <SelectContent>
-                {memberIds.map((uid) => (
-                  <SelectItem key={uid} value={uid}>
-                    {members[uid]?.displayName ?? uid}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Split between (checkboxes) */}
-        <div>
-          <Label>Chia cho (bỏ check nếu không tham gia):</Label>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {memberIds.map((uid) => (
-              // biome-ignore lint/a11y/noLabelWithoutControl: <explanation>
-              <label
-                key={uid}
-                className="flex cursor-pointer items-center gap-1.5"
-              >
-                <Checkbox
-                  checked={splitBetween.includes(uid)}
-                  onCheckedChange={() => toggleMember(uid)}
-                />
-                <span className="text-on-surface text-sm">
-                  {members[uid]?.displayName ?? uid}
-                </span>
-              </label>
-            ))}
-          </div>
-          <p className="mt-1 text-on-surface-variant text-xs">
-            {splitBetween.length}/{memberIds.length} thành viên
-          </p>
-        </div>
-
-        {/* Note */}
         <div>
           <Label>Ghi chú</Label>
           <Input
@@ -285,20 +373,14 @@ export const AddExpenseForm = ({
 
         <Button
           onClick={handleSubmit}
-          disabled={
-            !description.trim() ||
-            !amountRaw ||
-            (needsMemberSelect && !selectedMemberId) ||
-            splitBetween.length === 0 ||
-            isSubmitting
-          }
+          disabled={!canSubmit}
           className="w-full"
           size="sm"
         >
           {isSubmitting && (
             <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
           )}
-          {isEditMode ? "Lưu thay đổi" : "Thêm chi phí"}
+          {isEditMode ? "Lưu thay đổi" : "Thêm chi tiêu"}
         </Button>
       </CardContent>
     </Card>

@@ -58,7 +58,7 @@ export const createTrip = async (
     startDate: Timestamp.fromDate(new Date(input.startDate)),
     endDate: Timestamp.fromDate(new Date(input.endDate)),
     description: input.description ?? "",
-    budget: input.budget,
+    // budget: input.budget,
     currency: input.currency,
     createdBy: userId,
     memberIds: [userId],
@@ -116,7 +116,7 @@ export const updateTrip = async (
   if (data.destination !== undefined) updateData.destination = data.destination;
   if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.budget !== undefined) updateData.budget = data.budget;
+  // if (data.budget !== undefined) updateData.budget = data.budget;
   if (data.currency !== undefined) updateData.currency = data.currency;
   if (data.startDate !== undefined)
     updateData.startDate = Timestamp.fromDate(new Date(data.startDate));

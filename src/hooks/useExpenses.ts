@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  type BudgetStatus,
   calculateBalances,
   calculateDebts,
-  calculateSettlement,
   createExpense,
   deleteExpense,
-  getBudgetStatus,
-  type SettlementResult,
+  type ExpenseSummary,
+  getExpenseSummary,
   subscribeToExpenses,
   updateExpense,
 } from "@/services/expenseService";
@@ -24,9 +22,7 @@ import type {
 
 interface UseExpensesResult {
   expenses: ExpenseWithId[];
-  totalSpent: number;
-  budgetStatus: BudgetStatus;
-  settlement: SettlementResult;
+  summary: ExpenseSummary;
   balances: MemberBalance[];
   debts: DebtSettlement[];
   isLoading: boolean;
@@ -41,8 +37,7 @@ interface UseExpensesResult {
 
 export const useExpenses = (
   tripId: string,
-  members: Record<string, TripMemberInfo>,
-  budget: number
+  members: Record<string, TripMemberInfo>
 ): UseExpensesResult => {
   const user = useAuthStore((s) => s.user);
   const [expenses, setExpenses] = useState<ExpenseWithId[]>([]);
@@ -72,26 +67,11 @@ export const useExpenses = (
     return unsubscribe;
   }, [tripId]);
 
-  const totalSpent = useMemo(
-    () => expenses.reduce((sum, e) => sum + e.amount, 0),
-    [expenses]
-  );
-
-  const memberCount = Object.keys(members).length;
-
-  const budgetStatus = useMemo(
-    () => getBudgetStatus(expenses, budget, memberCount),
-    [expenses, budget, memberCount]
-  );
-
-  const settlement = useMemo(
-    () => calculateSettlement(expenses, members, budget),
-    [expenses, members, budget]
-  );
+  const summary = useMemo(() => getExpenseSummary(expenses), [expenses]);
 
   const balances = useMemo(
-    () => calculateBalances(expenses, members, budget),
-    [expenses, members, budget]
+    () => calculateBalances(expenses, members),
+    [expenses, members]
   );
 
   const debts = useMemo(() => calculateDebts(balances), [balances]);
@@ -99,16 +79,16 @@ export const useExpenses = (
   const handleAddExpense = useCallback(
     (input: CreateExpenseInput): Promise<string> => {
       if (!user) throw new Error("Not authenticated");
-      return createExpense(tripId, input, user.uid, memberCount);
+      return createExpense(tripId, input, user.uid);
     },
-    [tripId, user, memberCount]
+    [tripId, user]
   );
 
   const handleUpdateExpense = useCallback(
     (expenseId: string, data: Partial<CreateExpenseInput>): Promise<void> => {
-      return updateExpense(tripId, expenseId, data, memberCount);
+      return updateExpense(tripId, expenseId, data);
     },
-    [tripId, memberCount]
+    [tripId]
   );
 
   const handleDeleteExpense = useCallback(
@@ -120,9 +100,7 @@ export const useExpenses = (
 
   return {
     expenses,
-    totalSpent,
-    budgetStatus,
-    settlement,
+    summary,
     balances,
     debts,
     isLoading,

@@ -24,7 +24,7 @@ export const LoginDialog = () => {
           type="button"
           onClick={closeLoginDialog}
           aria-label="Close sign-in dialog"
-          className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-on-surface-variant shadow-md transition hover:text-on-surface"
+          className="absolute -top-3 -right-3 flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-surface-card text-on-surface-variant shadow-[0_4px_20px_rgba(0,0,0,0.08)] transition hover:bg-surface hover:text-on-surface"
         >
           ✕
         </button>

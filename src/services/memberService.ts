@@ -4,7 +4,6 @@ import {
   arrayUnion,
   collection,
   collectionGroup,
-  deleteField,
   doc,
   getDocs,
   onSnapshot,
@@ -85,6 +84,8 @@ export const acceptInvitation = async (
     photoURL: userPhotoURL,
     email: userEmail,
     joinedAt: Timestamp.now(),
+    status: "active",
+    participationStart: new Date().toISOString().split("T")[0],
   };
 
   const tripRef = doc(db, "trips", tripId);
@@ -105,9 +106,12 @@ export const removeMember = async (
   userId: string
 ): Promise<void> => {
   const tripRef = doc(db, "trips", tripId);
+  const today = new Date().toISOString().split("T")[0];
 
+  // Soft-delete: keep member record for expense history, just mark as removed
   await updateDoc(tripRef, {
-    [`members.${userId}`]: deleteField(),
+    [`members.${userId}.status`]: "removed",
+    [`members.${userId}.participationEnd`]: today,
     memberIds: arrayRemove(userId),
     updatedAt: serverTimestamp(),
   });
@@ -115,11 +119,16 @@ export const removeMember = async (
 
 export const leaveTrip = async (
   tripId: string,
-  userId: string
+  userId: string,
+  participationEnd?: string
 ): Promise<void> => {
   const tripRef = doc(db, "trips", tripId);
+  const endDate = participationEnd ?? new Date().toISOString().split("T")[0];
+
+  // Soft-delete: keep member record for expense history, just mark as left
   await updateDoc(tripRef, {
-    [`members.${userId}`]: deleteField(),
+    [`members.${userId}.status`]: "left",
+    [`members.${userId}.participationEnd`]: endDate,
     memberIds: arrayRemove(userId),
     updatedAt: serverTimestamp(),
   });

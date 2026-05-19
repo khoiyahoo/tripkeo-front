@@ -8,11 +8,13 @@ import {
   Map as MapIcon,
   MapPin,
   Pencil,
+  Scale,
   Trash2,
   Users,
 } from "lucide-react";
 import { useState } from "react";
 
+import { BalanceTab } from "@/components/organisms/BalanceTab";
 import { EditTripDialog } from "@/components/organisms/EditTripDialog";
 import { ExpensesTab } from "@/components/organisms/ExpensesTab";
 import { ItineraryTab } from "@/components/organisms/ItineraryTab";
@@ -46,9 +48,9 @@ import {
 
 const TABS = [
   { value: "itinerary", label: "Lịch trình", icon: ClipboardList },
-  { value: "expenses", label: "Chi phí", icon: DollarSign },
+  { value: "expenses", label: "Chi tiêu", icon: DollarSign },
+  { value: "balance", label: "Số dư", icon: Scale },
   { value: "members", label: "Thành viên", icon: Users },
-  { value: "map", label: "Bản đồ", icon: MapIcon },
 ];
 
 const TripDetailPage = () => {
@@ -70,13 +72,14 @@ const TripDetailPage = () => {
   } = useItinerary(tripId);
   const {
     expenses,
-    settlement,
-    budgetStatus,
+    summary,
+    balances,
+    debts,
     isLoading: isExpensesLoading,
     handleAddExpense,
     handleUpdateExpense,
     handleDeleteExpense,
-  } = useExpenses(tripId, trip?.members ?? {}, trip?.budget ?? 0);
+  } = useExpenses(tripId, trip?.members ?? {});
   const {
     handleInviteMember,
     handleRemoveMember,
@@ -129,6 +132,10 @@ const TripDetailPage = () => {
     "";
 
   // Build tripMeta for PDF export
+  // memberNames required by ItineraryPdfDocument; memberCount required by ExpensesPdfDocument
+  const activeMembers = memberEntries.filter(
+    ([, m]) => (m.status ?? "active") === "active"
+  );
   const tripMeta = {
     title: trip.name,
     destination: trip.destination,
@@ -142,7 +149,8 @@ const TripDetailPage = () => {
       month: "2-digit",
       year: "numeric",
     }).format(trip.endDate.toDate()),
-    memberNames: memberEntries.map(([, m]) => m.displayName),
+    memberNames: activeMembers.map(([, m]) => m.displayName),
+    memberCount: activeMembers.length,
   };
 
   // Group activities by date for itinerary
@@ -318,18 +326,25 @@ const TripDetailPage = () => {
             </TabsContent>
             <TabsContent value="expenses">
               <ExpensesTab
-                tripId={tripId}
-                tripName={trip.name}
+                meta={tripMeta}
                 expenses={expenses}
-                settlement={settlement}
+                summary={summary}
                 members={trip.members}
-                budget={trip.budget}
-                budgetStatus={budgetStatus}
                 isLoading={isExpensesLoading}
                 currentUserRole={currentUserRole}
+                balances={balances}
+                debts={debts}
                 onAddExpense={handleAddExpense}
                 onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
+              />
+            </TabsContent>
+            <TabsContent value="balance">
+              <BalanceTab
+                summary={summary}
+                balances={balances}
+                debts={debts}
+                members={trip.members}
               />
             </TabsContent>
             <TabsContent value="members">
@@ -338,10 +353,12 @@ const TripDetailPage = () => {
                 currentUserRole={currentUserRole}
                 currentUserId={user?.uid}
                 tripName={trip.name}
+                expenses={expenses}
+                balances={balances}
                 onInviteMember={handleInviteMember}
                 onRemoveMember={handleRemoveMember}
-                onLeaveTrip={async (userId) => {
-                  await handleLeaveTrip(userId);
+                onLeaveTrip={async (userId, participationEnd) => {
+                  await handleLeaveTrip(userId, participationEnd);
                   navigate({ to: "/" });
                 }}
                 onUpdateRole={handleUpdateRole}

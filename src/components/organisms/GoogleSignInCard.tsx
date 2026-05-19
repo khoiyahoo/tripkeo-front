@@ -24,7 +24,7 @@ export const GoogleSignInCard = ({
   onGoogleSignIn,
 }: GoogleSignInCardProps) => {
   return (
-    <div className="grid w-full max-w-md gap-6 rounded-3xl bg-surface-card p-8 text-left shadow-lg shadow-primary-950/5">
+    <div className="grid w-full max-w-md gap-6 rounded-[20px] bg-surface-card p-8 text-left shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
       <div className="grid gap-2 text-center">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-500 font-bold text-lg text-white">
           TK
@@ -41,7 +41,7 @@ export const GoogleSignInCard = ({
         type="button"
         onClick={onGoogleSignIn}
         disabled={isLoading}
-        className="flex items-center justify-center gap-3 rounded-2xl border border-outline-variant/30 bg-surface-card p-3 font-semibold text-base text-on-surface shadow-sm transition hover:border-outline-variant hover:bg-surface-dim disabled:cursor-not-allowed disabled:opacity-70"
+        className="flex items-center justify-center gap-3 rounded-full bg-primary-500 px-6 py-3.5 font-semibold text-base text-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-70"
       >
         <GoogleIcon />
         {isLoading ? "Đang đăng nhập..." : "Đăng nhập bằng Google"}

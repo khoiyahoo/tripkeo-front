@@ -4,7 +4,7 @@ import {
   Map as MapIcon,
   Menu,
   Settings,
-  Users,
+  UserRound,
   X,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -16,6 +16,8 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
+
+import logo from "@/assets/logo.webp";
 
 interface SidebarProps {
   currentPath: string;
@@ -31,7 +33,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: MapIcon, label: "Chuyến đi", path: "/trips" },
-  { icon: Users, label: "Bạn bè", path: "/friends" },
+  { icon: UserRound, label: "Hồ sơ", path: "/profile" },
   { icon: Settings, label: "Cài đặt", path: "/settings" },
 ];
 
@@ -49,22 +51,23 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
     setIsOpen(false);
   };
 
+  const desktopRailButtonClass =
+    "lg:h-14 lg:w-14 lg:justify-center lg:rounded-2xl lg:px-0";
+
   return (
     <>
-      {/* Mobile menu button */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed top-4 left-4 z-40 flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-md lg:hidden"
+        className="fixed top-4 left-4 z-40 flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant bg-surface-card text-on-surface shadow-[0_8px_24px_rgba(0,0,0,0.3)] lg:hidden"
         aria-label="Mở menu"
       >
-        <Menu className="h-5 w-5 text-on-surface" />
+        <Menu className="h-5 w-5" />
       </button>
 
-      {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setIsOpen(false)}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -75,106 +78,101 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 flex h-screen w-65 flex-col border-outline-variant/30 border-r bg-white transition-transform duration-300 lg:sticky lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed top-0 left-0 z-50 flex h-screen w-64 flex-col border-outline-variant border-r bg-surface px-4 py-5 transition-transform duration-300 lg:sticky lg:w-20 lg:px-3",
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between lg:justify-center">
           <button
             type="button"
             onClick={() => handleNavigate("/")}
-            className="flex items-center gap-2"
+            className="flex items-center gap-3 lg:gap-0"
+            aria-label="Đi đến Dashboard"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500 font-bold text-sm text-white">
-              TK
-            </div>
-            <span className="font-bold font-heading text-lg text-on-surface">
-              TripKeo
-            </span>
+            <img src={logo} alt="TripKeo Logo" className="h-12 w-10" />
           </button>
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-dim lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-dim lg:hidden"
             aria-label="Đóng menu"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <Separator className="bg-outline-variant/30" />
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="mt-4 flex flex-1 flex-col items-stretch gap-3 lg:items-center">
           {NAV_ITEMS.map((item) => {
             const isActive =
               currentPath === item.path ||
               (item.path !== "/" && currentPath.startsWith(item.path));
+
             return (
               <button
                 key={item.path}
                 type="button"
+                title={item.label}
                 onClick={() => handleNavigate(item.path)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-sm transition-colors",
+                  "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all",
+                  desktopRailButtonClass,
                   isActive
-                    ? "bg-primary-100 text-primary-800"
-                    : "text-on-surface-variant hover:bg-surface-dim"
+                    ? "bg-primary-500/18 text-white shadow-[0_10px_30px_rgba(0,0,0,0.24)]"
+                    : "text-secondary-400 hover:bg-surface-card hover:text-white"
                 )}
               >
-                <item.icon className="h-5 w-5" />
-                {item.label}
+                <item.icon className="h-5 w-5 shrink-0" />
+                <span className="lg:hidden">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <Separator className="bg-outline-variant/30" />
+        <Separator className="mb-4 bg-outline-variant lg:mx-2" />
 
-        {/* User section */}
-        <div className="p-4">
-          {user ? (
-            <div className="flex items-center gap-3">
-              <Avatar className="h-9 w-9">
-                <AvatarImage
-                  src={user.photoURL ?? undefined}
-                  alt={user.displayName ?? "Avatar"}
-                />
-                <AvatarFallback className="bg-primary-100 text-primary-800 text-xs">
-                  {user.displayName?.charAt(0) ?? "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 truncate">
-                <p className="truncate font-semibold text-on-surface text-sm">
-                  {user.displayName ?? "User"}
-                </p>
-                <p className="truncate text-on-surface-variant text-xs">
-                  {user.email}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleSignOut}
-                className="h-8 w-8 text-on-surface-variant hover:text-error-600"
-                aria-label="Đăng xuất"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
+        {user ? (
+          <div className="space-y-3 lg:flex lg:flex-col lg:items-center lg:space-y-4">
+            <Avatar className="h-11 w-11 border border-outline-variant lg:h-12 lg:w-12">
+              <AvatarImage
+                src={user.photoURL ?? undefined}
+                alt={user.displayName ?? "Avatar"}
+              />
+              <AvatarFallback className="bg-surface-dim text-on-surface text-xs">
+                {user.displayName?.charAt(0) ?? "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="lg:hidden">
+              <p className="truncate font-semibold text-on-surface text-sm">
+                {user.displayName ?? "User"}
+              </p>
+              <p className="truncate text-on-surface-variant text-xs">
+                {user.email}
+              </p>
             </div>
-          ) : (
             <Button
-              onClick={requireAuth(() => undefined)}
-              className="w-full rounded-xl bg-primary-600 text-white hover:bg-primary-700"
+              variant="ghost"
+              size="icon"
+              title="Đăng xuất"
+              onClick={handleSignOut}
+              className="h-11 w-11 rounded-xl text-secondary-400 hover:bg-primary-500/12 hover:text-primary-400"
+              aria-label="Đăng xuất"
             >
-              Đăng nhập
+              <LogOut className="h-5 w-5" />
             </Button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            title="Đăng nhập"
+            onClick={requireAuth(() => undefined)}
+            className="w-full lg:h-11 lg:w-11 lg:px-0"
+          >
+            <UserRound className="h-5 w-5" />
+            <span className="lg:hidden">Đăng nhập</span>
+          </Button>
+        )}
       </aside>
     </>
   );

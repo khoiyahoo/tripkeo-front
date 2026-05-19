@@ -107,7 +107,7 @@ export interface Trip {
   description?: string;
   status: TripStatus;
   members: TripMember[];
-  budget: number;
+  // budget: number;
   totalSpent: number;
   schedule: DaySchedule[];
   expenses: Expense[];
@@ -152,7 +152,7 @@ export interface DiscoverTrip {
   destination: string;
   coverImage: string;
   days: number;
-  budget: number;
+  // budget: number;
   rating: number;
   reviewCount: number;
   authorName: string;

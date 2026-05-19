@@ -2,11 +2,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { Calendar, Loader2, MapPin, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { DatePicker } from "@/components/molecules/DatePicker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -183,21 +183,20 @@ export default function TripsPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           {/* Date range */}
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 shrink-0 text-on-surface-variant" />
-            <Input
-              type="date"
+            <DatePicker
               value={fromDate}
-              max={toDate || undefined}
-              onChange={(e) => setFromDate(e.target.value)}
+              onChange={setFromDate}
+              maxDate={toDate || undefined}
               className="h-9 w-36 text-sm"
+              placeholder="Từ ngày"
             />
             <span className="text-on-surface-variant text-sm">—</span>
-            <Input
-              type="date"
+            <DatePicker
               value={toDate}
-              min={fromDate || undefined}
-              onChange={(e) => setToDate(e.target.value)}
+              onChange={setToDate}
+              minDate={fromDate || undefined}
               className="h-9 w-36 text-sm"
+              placeholder="Đến ngày"
             />
           </div>
 
@@ -208,9 +207,9 @@ export default function TripsPage() {
                 key={tab.value}
                 type="button"
                 onClick={() => setStatusFilter(tab.value)}
-                className={`rounded-md px-3 py-1.5 font-medium text-sm transition-colors ${
+                className={`cursor-pointer rounded-md px-3 py-1.5 font-medium text-sm transition-colors ${
                   statusFilter === tab.value
-                    ? "bg-white text-on-surface shadow-sm"
+                    ? "bg-primary-500 text-on-surface shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >

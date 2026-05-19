@@ -101,7 +101,7 @@ export const useInvitations = (): UseInvitationsResult => {
 interface UseTripMembersResult {
   handleInviteMember: (input: InviteMemberInput) => Promise<string>;
   handleRemoveMember: (userId: string) => Promise<void>;
-  handleLeaveTrip: (userId: string) => Promise<void>;
+  handleLeaveTrip: (userId: string, participationEnd?: string) => Promise<void>;
   handleUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   handleCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
   handleCreateShareLink: (
@@ -150,8 +150,8 @@ export const useTripMembers = (
   );
 
   const handleLeaveTrip = useCallback(
-    (userId: string): Promise<void> => {
-      return leaveTrip(tripId, userId);
+    (userId: string, participationEnd?: string): Promise<void> => {
+      return leaveTrip(tripId, userId, participationEnd);
     },
     [tripId]
   );

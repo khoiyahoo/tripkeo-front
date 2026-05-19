@@ -2,17 +2,16 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
-  Calendar,
   Check,
   Loader2,
   Mail,
   MapPin,
   Users,
-  Wallet,
   X,
 } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 
+import { DatePicker } from "@/components/molecules/DatePicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,14 +20,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
 import { cn } from "@/lib/utils";
-import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 
 import type { CreateTripInput, InvitedMember } from "@/types/firestore";
 
 const STEPS = [
   { id: 1, label: "Thông tin", icon: MapPin },
   { id: 2, label: "Thành viên", icon: Users },
-  { id: 3, label: "Ngân sách", icon: Wallet },
+  // { id: 3, label: "Ngân sách", icon: Wallet },
 ];
 
 const COVER_IMAGES = [
@@ -37,7 +35,6 @@ const COVER_IMAGES = [
   "https://images.unsplash.com/photo-1528127269322-539801943592?w=400&q=80",
   "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=400&q=80",
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80",
-  "https://images.unsplash.com/photo-1540979388-5b4b9b3c5e0d?w=400&q=80",
 ];
 
 const StepIndicator = ({ currentStep }: { currentStep: number }) => (
@@ -84,7 +81,7 @@ interface FormData {
   endDate: string;
   coverImage: string;
   description: string;
-  budget: string;
+  // budget: string;
   currency: string;
   invitedMembers: InvitedMember[];
 }
@@ -116,7 +113,7 @@ const CreateTripPage = () => {
     endDate: "",
     coverImage: COVER_IMAGES[0],
     description: "",
-    budget: "",
+    // budget: "",
     currency: "VND",
     invitedMembers: [],
   });
@@ -245,7 +242,7 @@ const CreateTripPage = () => {
       startDate: formData.startDate,
       endDate: formData.endDate,
       description: formData.description.trim(),
-      budget: Number(parseCurrencyInput(formData.budget)) || 0,
+      // budget: Number(parseCurrencyInput(formData.budget)) || 0,
       currency: formData.currency,
       invitedMembers:
         formData.invitedMembers.length > 0
@@ -264,7 +261,7 @@ const CreateTripPage = () => {
 
   return (
     <MainLayout currentPath="/trips">
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -312,20 +309,15 @@ const CreateTripPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="startDate">Ngày bắt đầu *</Label>
-                    <div className="relative mt-1.5">
-                      <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                      <Input
+                    <div className="mt-1.5">
+                      <DatePicker
                         id="startDate"
-                        type="date"
-                        className="pl-9"
-                        min={todayDateStr}
                         value={formData.startDate}
-                        onChange={(e) => {
-                          updateField("startDate", e.target.value);
-                          if (
-                            formData.endDate &&
-                            e.target.value > formData.endDate
-                          ) {
+                        minDate={todayDateStr}
+                        placeholder="Chọn ngày bắt đầu"
+                        onChange={(val) => {
+                          updateField("startDate", val);
+                          if (formData.endDate && val > formData.endDate) {
                             updateField("endDate", "");
                           }
                         }}
@@ -334,15 +326,13 @@ const CreateTripPage = () => {
                   </div>
                   <div>
                     <Label htmlFor="endDate">Ngày kết thúc *</Label>
-                    <div className="relative mt-1.5">
-                      <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                      <Input
+                    <div className="mt-1.5">
+                      <DatePicker
                         id="endDate"
-                        type="date"
-                        className="pl-9"
-                        min={formData.startDate || undefined}
                         value={formData.endDate}
-                        onChange={(e) => updateField("endDate", e.target.value)}
+                        minDate={formData.startDate || todayDateStr}
+                        placeholder="Chọn ngày kết thúc"
+                        onChange={(val) => updateField("endDate", val)}
                       />
                     </div>
                   </div>
@@ -359,7 +349,7 @@ const CreateTripPage = () => {
                         type="button"
                         onClick={() => updateField("coverImage", url)}
                         className={cn(
-                          "aspect-video overflow-hidden rounded-lg border-2 transition",
+                          "aspect-video cursor-pointer overflow-hidden rounded-lg border-2 transition",
                           formData.coverImage === url
                             ? "border-primary-500 ring-2 ring-primary-200"
                             : "border-transparent hover:border-outline-variant"
@@ -379,7 +369,7 @@ const CreateTripPage = () => {
                   <Textarea
                     id="description"
                     placeholder="Mô tả chuyến đi..."
-                    className="mt-1.5"
+                    className="mt-1.5 bg-surface-dim"
                     rows={3}
                     value={formData.description}
                     onChange={(e) => updateField("description", e.target.value)}
@@ -501,22 +491,19 @@ const CreateTripPage = () => {
             {currentStep === 3 && (
               <div className="space-y-5">
                 <div>
-                  <Label htmlFor="totalBudget">Tổng ngân sách dự kiến</Label>
+                  {/* <Label htmlFor="totalBudget">Tổng ngân sách dự kiến</Label> */}
                   <div className="relative mt-1.5">
                     <span className="absolute top-1/2 left-3 -translate-y-1/2 font-medium text-on-surface-variant text-sm">
                       ₫
                     </span>
                     <Input
-                      id="totalBudget"
+                      // id="totalBudget"
                       type="text"
                       inputMode="numeric"
                       placeholder="10.000.000"
                       className="pl-7"
-                      value={formData.budget}
-                      onChange={(e) => {
-                        const raw = parseCurrencyInput(e.target.value);
-                        updateField("budget", formatCurrencyInput(raw));
-                      }}
+                      // value={formData.budget}
+                      // removed budget logic
                     />
                   </div>
                 </div>

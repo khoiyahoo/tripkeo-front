@@ -1,14 +1,8 @@
-import {
-  AlertTriangle,
-  Calendar,
-  Check,
-  Loader2,
-  MapPin,
-  Wallet,
-} from "lucide-react";
+import { AlertTriangle, Check, Loader2, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/molecules/DatePicker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,16 +15,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   computeDateChangeImpact,
   type DateChangeImpact,
   useEditTrip,
 } from "@/hooks/useEditTrip";
 import { cn } from "@/lib/utils";
-import {
-  formatCurrencyInput,
-  parseCurrencyInput,
-  timestampToDateStr,
-} from "@/utils/format";
+import { timestampToDateStr } from "@/utils/format";
 
 import type {
   ActivityWithId,
@@ -77,7 +74,6 @@ interface FormData {
   coverImage: string;
   startDate: string;
   endDate: string;
-  budget: string;
   currency: string;
 }
 
@@ -108,7 +104,6 @@ export const EditTripDialog = ({
     coverImage: trip.coverImage,
     startDate: oldStartStr,
     endDate: oldEndStr,
-    budget: trip.budget ? formatCurrencyInput(String(trip.budget)) : "",
     currency: trip.currency,
   });
 
@@ -121,7 +116,6 @@ export const EditTripDialog = ({
         coverImage: trip.coverImage,
         startDate: oldStartStr,
         endDate: oldEndStr,
-        budget: trip.budget ? formatCurrencyInput(String(trip.budget)) : "",
         currency: trip.currency,
       });
       setDateError(null);
@@ -176,7 +170,6 @@ export const EditTripDialog = ({
       coverImage: formData.coverImage,
       startDate: formData.startDate,
       endDate: formData.endDate,
-      budget: Number(parseCurrencyInput(formData.budget)) || 0,
       currency: formData.currency,
     };
 
@@ -300,36 +293,32 @@ export const EditTripDialog = ({
                 <div>
                   <Label htmlFor="edit-startDate">Ngày bắt đầu *</Label>
                   <div className="relative mt-1.5">
-                    <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                    <Input
+                    <DatePicker
                       id="edit-startDate"
-                      type="date"
-                      className="pl-9"
-                      min={todayDateStr}
                       value={formData.startDate}
-                      onChange={(e) => {
-                        updateField("startDate", e.target.value);
-                        if (
-                          formData.endDate &&
-                          e.target.value > formData.endDate
-                        ) {
+                      onChange={(val) => {
+                        updateField("startDate", val);
+                        if (formData.endDate && val > formData.endDate) {
                           updateField("endDate", "");
                         }
                       }}
+                      minDate={todayDateStr}
+                      maxDate={formData.endDate || undefined}
+                      className="pl-9"
+                      placeholder="Chọn ngày bắt đầu"
                     />
                   </div>
                 </div>
                 <div>
                   <Label htmlFor="edit-endDate">Ngày kết thúc *</Label>
                   <div className="relative mt-1.5">
-                    <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                    <Input
+                    <DatePicker
                       id="edit-endDate"
-                      type="date"
-                      className="pl-9"
-                      min={formData.startDate || undefined}
                       value={formData.endDate}
-                      onChange={(e) => updateField("endDate", e.target.value)}
+                      onChange={(val) => updateField("endDate", val)}
+                      minDate={formData.startDate || undefined}
+                      className="pl-9"
+                      placeholder="Chọn ngày kết thúc"
                     />
                   </div>
                 </div>
@@ -338,42 +327,24 @@ export const EditTripDialog = ({
                 <p className="text-error-500 text-sm">{dateError}</p>
               )}
 
-              {/* Budget & currency */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="edit-budget">Ngân sách</Label>
-                  <div className="relative mt-1.5">
-                    <Wallet className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                    <Input
-                      id="edit-budget"
-                      type="text"
-                      inputMode="numeric"
-                      min="0"
-                      placeholder="10.000.000"
-                      className="pl-9"
-                      value={formData.budget}
-                      onChange={(e) => {
-                        const raw = parseCurrencyInput(e.target.value);
-                        updateField("budget", formatCurrencyInput(raw));
-                      }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="edit-currency">Đơn vị tiền tệ</Label>
-                  <select
-                    id="edit-currency"
-                    className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={formData.currency}
-                    onChange={(e) => updateField("currency", e.target.value)}
-                  >
+              {/* Currency */}
+              <div>
+                <Label htmlFor="edit-currency">Đơn vị tiền tệ</Label>
+                <Select
+                  value={formData.currency}
+                  onValueChange={(val) => updateField("currency", val)}
+                >
+                  <SelectTrigger className="mt-1.5" id="edit-currency">
+                    <SelectValue placeholder="Chọn đơn vị tiền tệ" />
+                  </SelectTrigger>
+                  <SelectContent>
                     {CURRENCIES.map((c) => (
-                      <option key={c.value} value={c.value}>
+                      <SelectItem key={c.value} value={c.value}>
                         {c.label}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

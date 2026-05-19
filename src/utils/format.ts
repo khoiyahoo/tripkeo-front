@@ -61,9 +61,9 @@ export const getStatusColor = (
   status: "upcoming" | "ongoing" | "completed"
 ): string => {
   const colors = {
-    upcoming: "bg-primary-100 text-primary-800",
-    ongoing: "bg-success-50 text-success-700",
-    completed: "bg-slate-100 text-slate-600",
+    upcoming: "bg-primary-500 text-white shadow-md",
+    ongoing: "bg-success-500 text-white shadow-md",
+    completed: "bg-secondary-400 text-white shadow-md",
   };
   return colors[status];
 };

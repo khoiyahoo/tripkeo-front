@@ -503,7 +503,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=600&q=80",
     days: 4,
-    budget: 5_000_000,
+    // budget: 5_000_000,
     rating: 4.8,
     reviewCount: 124,
     authorName: "Travel Koi",
@@ -517,7 +517,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1540979388-5b4b9b3c5e0d?w=600&q=80",
     days: 5,
-    budget: 8_000_000,
+    // budget: 8_000_000,
     rating: 4.6,
     reviewCount: 89,
     authorName: "Wanderlust VN",
@@ -531,7 +531,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=80",
     days: 3,
-    budget: 3_500_000,
+    // budget: 3_500_000,
     rating: 4.9,
     reviewCount: 203,
     authorName: "Dalat Explorer",
@@ -545,7 +545,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80",
     days: 3,
-    budget: 4_200_000,
+    // budget: 4_200_000,
     rating: 4.5,
     reviewCount: 67,
     authorName: "BeachLife",
@@ -559,7 +559,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1528127269322-539801943592?w=600&q=80",
     days: 4,
-    budget: 4_000_000,
+    // budget: 4_000_000,
     rating: 4.9,
     reviewCount: 315,
     authorName: "Moto Adventure",
@@ -573,7 +573,7 @@ export const MOCK_DISCOVER_TRIPS: DiscoverTrip[] = [
     coverImage:
       "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=600&q=80",
     days: 3,
-    budget: 3_000_000,
+    // budget: 3_000_000,
     rating: 4.7,
     reviewCount: 98,
     authorName: "Quiet Trip",

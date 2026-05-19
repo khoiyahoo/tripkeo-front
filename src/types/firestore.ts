@@ -14,6 +14,7 @@ export interface UserProfileDoc {
 
 // ─── Trip ────────────────────────────────────────────────────
 export type TripRole = "owner" | "editor" | "treasurer" | "member";
+export type MemberStatus = "active" | "left" | "removed";
 
 export interface TripMemberInfo {
   role: TripRole;
@@ -21,6 +22,12 @@ export interface TripMemberInfo {
   photoURL: string;
   email: string;
   joinedAt: Timestamp;
+  /** Soft-delete state. Undefined on legacy records = active. */
+  status?: MemberStatus;
+  /** YYYY-MM-DD when the member officially joined (may differ from joinedAt) */
+  participationStart?: string;
+  /** YYYY-MM-DD when the member left or was removed */
+  participationEnd?: string;
 }
 
 export interface TripDoc {
@@ -30,7 +37,7 @@ export interface TripDoc {
   startDate: Timestamp;
   endDate: Timestamp;
   description: string;
-  budget: number;
+  // budget: number;
   currency: string;
   createdBy: string;
   memberIds: string[];
@@ -57,23 +64,29 @@ export interface ActivityDoc {
 }
 
 // ─── Expense (subcollection: trips/{tripId}/expenses) ────────
-export type ExpensePaidByType = "group_fund" | "member_shared";
-
-export interface ExpensePaidBy {
-  type: ExpensePaidByType;
-  userId: string | null;
-  displayName: string;
-}
+export type SplitMethod = "equal" | "percentage" | "amount" | "shares";
 
 export interface ExpenseDoc {
   description: string;
   amount: number;
   category: ExpenseCategory;
   date: Timestamp;
-  paidBy: ExpensePaidBy;
-  splitBetween: string[]; // uid[] of participants
-  totalMembers: number;
-  affectsGroupFund: boolean;
+  /** UID of the person who paid */
+  paidByUid: string;
+  paidByName: string;
+  /** UIDs of participants in the split */
+  splitBetween: string[];
+  /** How the expense is divided */
+  splitMethod: SplitMethod;
+  /**
+   * Per-member split detail (uid → value).
+   * - equal: not stored (computed)
+   * - percentage: uid → percent (must sum to 100)
+   * - amount: uid → exact amount (must sum to expense amount)
+   * - shares: uid → number of shares
+   */
+  splitDetails?: Record<string, number>;
+  receiptUrl?: string;
   note?: string;
   createdBy: string;
   createdAt: Timestamp;
@@ -130,7 +143,7 @@ export interface CreateTripInput {
   startDate: string; // YYYY-MM-DD
   endDate: string;
   description?: string;
-  budget: number;
+  // budget: number;
   currency: string;
   invitedMembers?: InvitedMember[];
 }
@@ -153,8 +166,12 @@ export interface CreateExpenseInput {
   amount: number;
   category: ExpenseCategory;
   date: string; // YYYY-MM-DD
-  paidBy: ExpensePaidBy;
-  splitBetween: string[]; // uid[] of participants
+  paidByUid: string;
+  paidByName: string;
+  splitBetween: string[];
+  splitMethod: SplitMethod;
+  splitDetails?: Record<string, number>;
+  receiptUrl?: string;
   note?: string;
 }
 

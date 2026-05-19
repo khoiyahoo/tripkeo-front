@@ -12,9 +12,13 @@ import {
 } from "@react-pdf/renderer";
 
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
-import type { SettlementResult } from "@/services/expenseService";
+import type { ExpenseSummary } from "@/services/expenseService";
 
-import type { ExpenseWithId } from "@/types/firestore";
+import type {
+  DebtSettlement,
+  ExpenseWithId,
+  MemberBalance,
+} from "@/types/firestore";
 
 // ─── Font Registration ────────────────────────────────────────
 Font.register({
@@ -39,10 +43,9 @@ export interface ExpensePdfMeta {
 export interface ExpensePdfProps {
   meta: ExpensePdfMeta;
   expenses: ExpenseWithId[];
-  budget: number;
-  /** Only fund-affecting expenses (Cases 1+2+3). Excludes Case 4. */
-  totalGroupSpent: number;
-  settlement: SettlementResult;
+  summary: ExpenseSummary;
+  balances: MemberBalance[];
+  debts: DebtSettlement[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -206,19 +209,16 @@ const COL = {
 export const ExpensePdfDocument = ({
   meta,
   expenses,
-  budget,
-  totalGroupSpent,
-  settlement,
+  summary,
+  balances,
+  debts,
 }: ExpensePdfProps) => {
-  const remaining = settlement.fundRemaining;
-  const perPerson = meta.memberCount > 0 ? budget / meta.memberCount : 0;
-
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>{meta.title} – Chi phí</Text>
+          <Text style={styles.title}>{meta.title} – Chi tiêu</Text>
           <View style={styles.headerMeta}>
             {meta.destination && (
               <Text style={styles.headerMetaText}>
@@ -239,29 +239,21 @@ export const ExpensePdfDocument = ({
         {/* Summary cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Ngân sách</Text>
-            <Text style={styles.summaryValue}>{fmtCurrency(budget)}</Text>
-            {perPerson > 0 && (
-              <Text style={[styles.summaryLabel, { marginTop: 2 }]}>
-                {fmtCurrency(perPerson)} / người
-              </Text>
-            )}
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Đã chi (quỹ)</Text>
+            <Text style={styles.summaryLabel}>Tổng chi tiêu</Text>
             <Text style={styles.summaryValue}>
-              {fmtCurrency(totalGroupSpent)}
+              {fmtCurrency(summary.totalSpent)}
             </Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Còn lại</Text>
-            <Text
-              style={[
-                styles.summaryValue,
-                { color: remaining < 0 ? C.red : C.green },
-              ]}
-            >
-              {fmtCurrency(remaining)}
+            <Text style={styles.summaryLabel}>Số chi tiêu</Text>
+            <Text style={styles.summaryValue}>{summary.expenseCount}</Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Trung bình / người</Text>
+            <Text style={styles.summaryValue}>
+              {meta.memberCount > 0
+                ? fmtCurrency(Math.round(summary.totalSpent / meta.memberCount))
+                : "—"}
             </Text>
           </View>
         </View>
@@ -296,12 +288,6 @@ export const ExpensePdfDocument = ({
           </View>
 
           {expenses.map((exp, idx) => {
-            const paidByLabel =
-              typeof exp.paidBy === "string"
-                ? exp.paidBy
-                : exp.paidBy.type === "group_fund"
-                  ? "Quỹ chung"
-                  : exp.paidBy.displayName;
             const catLabel =
               EXPENSE_CATEGORY_CONFIG[exp.category]?.label ?? exp.category;
 
@@ -329,7 +315,7 @@ export const ExpensePdfDocument = ({
                   {fmtCurrency(exp.amount)}
                 </Text>
                 <Text style={[styles.cell, { width: COL.paidBy }]}>
-                  {paidByLabel}
+                  {exp.paidByName || "?"}
                 </Text>
                 <Text style={[styles.cell, { width: COL.note }]}>
                   {exp.note ?? ""}
@@ -339,170 +325,107 @@ export const ExpensePdfDocument = ({
           })}
         </View>
 
-        {/* Settlement section */}
+        {/* Balance section */}
         <View wrap={false}>
-          <Text style={styles.sectionTitle}>📋 Quyết toán quỹ</Text>
-
-          {/* Fund balance breakdown */}
-          <View style={[styles.table, { marginBottom: 8 }]}>
-            <View style={[styles.balanceRow, { backgroundColor: "#f8fafc" }]}>
-              <Text style={{ fontSize: 8.5 }}>Ngân sách</Text>
-              <Text style={{ fontSize: 8.5, fontWeight: 700 }}>
-                {fmtCurrency(budget)}
-              </Text>
-            </View>
-            <View style={styles.balanceRow}>
-              <Text style={{ fontSize: 8.5 }}>Chi quỹ chung</Text>
-              <Text style={{ fontSize: 8.5 }}>
-                − {fmtCurrency(settlement.groupFundSpent)}
-              </Text>
-            </View>
-            {settlement.totalReimburseToMembers > 0 && (
-              <View style={styles.balanceRow}>
-                <Text style={{ fontSize: 8.5 }}>Hoàn cho member trả hộ</Text>
-                <Text style={{ fontSize: 8.5 }}>
-                  − {fmtCurrency(settlement.totalReimburseToMembers)}
-                </Text>
-              </View>
-            )}
-            {settlement.totalRefundNonParticipants > 0 && (
-              <View style={styles.balanceRow}>
-                <Text style={{ fontSize: 8.5 }}>
-                  Hoàn cho member không tham gia
-                </Text>
-                <Text style={{ fontSize: 8.5 }}>
-                  −{" "}
-                  {fmtCurrency(
-                    Math.round(settlement.totalRefundNonParticipants)
-                  )}
-                </Text>
-              </View>
-            )}
-            <View
-              style={[
-                styles.balanceRow,
-                { backgroundColor: remaining < 0 ? C.redBg : C.greenBg },
-              ]}
-            >
-              <Text style={{ fontSize: 8.5, fontWeight: 700 }}>
-                Quỹ còn lại
+          <Text style={styles.sectionTitle}>💰 Số dư từng người</Text>
+          <View style={styles.table}>
+            <View style={styles.colHeader}>
+              <Text style={[styles.colHeaderCell, { flex: 2 }]}>
+                Thành viên
               </Text>
               <Text
-                style={{
-                  fontSize: 8.5,
-                  fontWeight: 700,
-                  color: remaining < 0 ? C.red : C.green,
-                }}
+                style={[styles.colHeaderCell, { flex: 1, textAlign: "right" }]}
               >
-                {fmtCurrency(Math.round(remaining))}
+                Đã trả
+              </Text>
+              <Text
+                style={[styles.colHeaderCell, { flex: 1, textAlign: "right" }]}
+              >
+                Phần chịu
+              </Text>
+              <Text
+                style={[styles.colHeaderCell, { flex: 1, textAlign: "right" }]}
+              >
+                Số dư
               </Text>
             </View>
-            {settlement.perPersonReturn > 0 && (
-              <View style={styles.balanceRow}>
-                <Text style={{ fontSize: 8.5, color: C.textMuted }}>
-                  Hoàn mỗi người ({meta.memberCount} người)
+            {balances.map((b: MemberBalance) => (
+              <View key={b.uid} style={styles.balanceRow}>
+                <Text style={{ fontSize: 8.5, flex: 2 }}>{b.displayName}</Text>
+                <Text style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}>
+                  {fmtCurrency(b.totalPaid)}
                 </Text>
-                <Text style={{ fontSize: 8.5, color: C.green }}>
-                  {fmtCurrency(Math.round(settlement.perPersonReturn))}
+                <Text style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}>
+                  {fmtCurrency(b.totalOwed)}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 8.5,
+                    flex: 1,
+                    textAlign: "right",
+                    fontWeight: 700,
+                    color: b.net >= 0 ? C.green : C.red,
+                  }}
+                >
+                  {b.net >= 0 ? "+" : ""}
+                  {fmtCurrency(Math.round(b.net))}
                 </Text>
               </View>
-            )}
-            {settlement.perPersonOwes > 0 && (
-              <View style={styles.balanceRow}>
-                <Text style={{ fontSize: 8.5, color: C.textMuted }}>
-                  Mỗi người đóng thêm ({meta.memberCount} người)
-                </Text>
-                <Text style={{ fontSize: 8.5, color: C.red }}>
-                  {fmtCurrency(Math.round(settlement.perPersonOwes))}
-                </Text>
-              </View>
-            )}
+            ))}
           </View>
+        </View>
 
-          {/* Who receives money */}
-          {(settlement.reimburseToMembers.length > 0 ||
-            settlement.refundToNonParticipants.length > 0 ||
-            settlement.perPersonReturn > 0) && (
-            <>
-              <Text
-                style={[styles.sectionTitle, { fontSize: 9, marginTop: 6 }]}
-              >
-                📌 Ai nhận tiền từ quỹ
-              </Text>
-              <View style={styles.table}>
-                <View style={styles.colHeader}>
-                  <Text style={[styles.colHeaderCell, { flex: 2 }]}>
-                    Người nhận
+        {/* Settlement section */}
+        {debts.length > 0 && (
+          <View wrap={false}>
+            <Text style={styles.sectionTitle}>🔄 Ai trả ai?</Text>
+            <View style={styles.table}>
+              <View style={styles.colHeader}>
+                <Text style={[styles.colHeaderCell, { flex: 2 }]}>
+                  Người trả
+                </Text>
+                <Text style={[styles.colHeaderCell, { flex: 2 }]}>
+                  Người nhận
+                </Text>
+                <Text
+                  style={[
+                    styles.colHeaderCell,
+                    { flex: 1, textAlign: "right" },
+                  ]}
+                >
+                  Số tiền
+                </Text>
+              </View>
+              {debts.map((d: DebtSettlement, i: number) => (
+                <View
+                  key={`${d.fromUid}-${d.toUid}-${i}`}
+                  style={styles.balanceRow}
+                >
+                  <Text style={{ fontSize: 8.5, flex: 2, color: C.red }}>
+                    {d.fromName}
                   </Text>
-                  <Text style={[styles.colHeaderCell, { flex: 2 }]}>Lý do</Text>
+                  <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
+                    {d.toName}
+                  </Text>
                   <Text
-                    style={[
-                      styles.colHeaderCell,
-                      { flex: 1, textAlign: "right" },
-                    ]}
+                    style={{
+                      fontSize: 8.5,
+                      flex: 1,
+                      textAlign: "right",
+                      fontWeight: 700,
+                    }}
                   >
-                    Số tiền
+                    {fmtCurrency(d.amount)}
                   </Text>
                 </View>
-                {settlement.reimburseToMembers.map((r) => (
-                  <View key={`r-${r.uid}`} style={styles.balanceRow}>
-                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
-                      {r.name}
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
-                    >
-                      Trả hộ
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
-                    >
-                      {fmtCurrency(Math.round(r.amount))}
-                    </Text>
-                  </View>
-                ))}
-                {settlement.refundToNonParticipants.map((r) => (
-                  <View key={`f-${r.uid}`} style={styles.balanceRow}>
-                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
-                      {r.name}
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
-                    >
-                      Không tham gia
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
-                    >
-                      {fmtCurrency(Math.round(r.amount))}
-                    </Text>
-                  </View>
-                ))}
-                {settlement.perPersonReturn > 0 && (
-                  <View style={styles.balanceRow}>
-                    <Text style={{ fontSize: 8.5, flex: 2, color: C.green }}>
-                      Tất cả ({meta.memberCount} người)
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 2, color: C.textMuted }}
-                    >
-                      Hoàn quỹ dư
-                    </Text>
-                    <Text
-                      style={{ fontSize: 8.5, flex: 1, textAlign: "right" }}
-                    >
-                      {fmtCurrency(Math.round(settlement.perPersonReturn))}/ng
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </>
-          )}
-        </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>TripKeo – Chi phí chuyến đi</Text>
+          <Text style={styles.footerText}>TripKeo – Chi tiêu chuyến đi</Text>
           <Text
             style={styles.footerText}
             render={({ pageNumber, totalPages }) =>
