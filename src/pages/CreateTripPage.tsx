@@ -6,6 +6,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  RefreshCw,
   Users,
   X,
 } from "lucide-react";
@@ -33,16 +34,13 @@ import type { CreateTripInput, InvitedMember } from "@/types/firestore";
 const STEPS = [
   { id: 1, label: "Thông tin", icon: MapPin },
   { id: 2, label: "Thành viên", icon: Users },
-  // { id: 3, label: "Ngân sách", icon: Wallet },
 ];
 
-const COVER_IMAGES = [
-  "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=400&q=80",
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
-  "https://images.unsplash.com/photo-1528127269322-539801943592?w=400&q=80",
-  "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=400&q=80",
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80",
-];
+// ─── Picsum helpers ───────────────────────────────────────────
+const generateCoverSeed = (): string => Math.random().toString(36).slice(2, 10);
+
+const picsumCoverUrl = (seed: string): string =>
+  `https://picsum.photos/seed/${seed}/1200/600`;
 
 const StepIndicator = ({ currentStep }: { currentStep: number }) => (
   <div className="flex items-center justify-center gap-2">
@@ -86,10 +84,8 @@ interface FormData {
   destination: string;
   startDate: string;
   endDate: string;
-  coverImage: string;
+  coverSeed: string;
   description: string;
-  // budget: string;
-  currency: string;
   invitedMembers: InvitedMember[];
 }
 
@@ -120,10 +116,8 @@ const CreateTripPage = () => {
     destination: "",
     startDate: "",
     endDate: "",
-    coverImage: COVER_IMAGES[0],
+    coverSeed: generateCoverSeed(),
     description: "",
-    // budget: "",
-    currency: "VND",
     invitedMembers: [],
   });
 
@@ -234,7 +228,7 @@ const CreateTripPage = () => {
       if (!validateDates()) return;
       if (!isStep1Valid) return;
     }
-    setCurrentStep((s) => Math.min(3, s + 1));
+    setCurrentStep((s) => Math.min(2, s + 1));
   };
 
   const handleSubmit = async () => {
@@ -247,12 +241,11 @@ const CreateTripPage = () => {
     const input: CreateTripInput = {
       name: formData.name.trim(),
       destination: formData.destination.trim(),
-      coverImage: formData.coverImage,
+      coverImage: picsumCoverUrl(formData.coverSeed),
       startDate: formData.startDate,
       endDate: formData.endDate,
       description: formData.description.trim(),
-      // budget: Number(parseCurrencyInput(formData.budget)) || 0,
-      currency: formData.currency,
+      currency: "VND",
       invitedMembers:
         formData.invitedMembers.length > 0
           ? formData.invitedMembers
@@ -351,27 +344,23 @@ const CreateTripPage = () => {
                 )}
                 <div>
                   <Label>Ảnh bìa</Label>
-                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
-                    {COVER_IMAGES.map((url) => (
-                      <button
-                        key={url}
-                        type="button"
-                        onClick={() => updateField("coverImage", url)}
-                        className={cn(
-                          "aspect-video cursor-pointer overflow-hidden rounded-lg border-2 transition",
-                          formData.coverImage === url
-                            ? "border-primary-500 ring-2 ring-primary-200"
-                            : "border-transparent hover:border-outline-variant"
-                        )}
-                      >
-                        <img
-                          src={url}
-                          alt="Cover option"
-                          className="h-full w-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
+                  <img
+                    src={picsumCoverUrl(formData.coverSeed)}
+                    alt="Cover preview"
+                    className="h-40 w-40 rounded-md object-cover"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() =>
+                      updateField("coverSeed", generateCoverSeed())
+                    }
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Đổi ảnh
+                  </Button>
                 </div>
                 <div>
                   <Label htmlFor="description">Mô tả ngắn</Label>
@@ -515,7 +504,7 @@ const CreateTripPage = () => {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Quay lại
           </Button>
-          {currentStep < 3 ? (
+          {currentStep < 2 ? (
             <Button
               onClick={handleNextStep}
               disabled={currentStep === 1 && !isStep1Valid}

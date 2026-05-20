@@ -27,14 +27,18 @@ service cloud.firestore {
         && request.auth.uid == request.resource.data.createdBy
         && request.auth.uid in request.resource.data.memberIds;
 
-      // Owner can update anything; editors can update limited fields
+      // Owner can update anything (except downgrading their own role); editors can update limited fields
       allow update: if request.auth != null
         && (
           // Existing member with owner/editor role
           (
             request.auth.uid in resource.data.memberIds
             && (
-              resource.data.members[request.auth.uid].role == 'owner'
+              (
+                resource.data.members[request.auth.uid].role == 'owner'
+                // Bug 3 fix: Owner cannot change their own role via any update path
+                && request.resource.data.members[request.auth.uid].role == 'owner'
+              )
               ||
               (
                 resource.data.members[request.auth.uid].role in ['editor', 'treasurer']
@@ -122,11 +126,20 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner';
 
         // Update: owner or the invited user (to accept/decline)
-        // Also allow authenticated users accepting share-link invitations (email is empty)
+        // Also allow authenticated users accepting share-link invitations (email is empty).
+        // Restricted to changing status only, preventing tampering with other fields.
         allow update: if request.auth != null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['accepted', 'declined']
           && (
-            get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
+            // Owner can update any invitation status
+            (
+              request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+              && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
+            )
+            // The invited user can accept/decline their own email invitation
             || request.auth.token.email == resource.data.email
+            // Any authenticated user can accept/decline a share-link invitation
             || resource.data.email == ''
           );
 

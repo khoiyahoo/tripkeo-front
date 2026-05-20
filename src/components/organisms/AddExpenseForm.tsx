@@ -217,6 +217,9 @@ export const AddExpenseForm = ({
 
         <div>
           <Label>Người trả *</Label>
+          <p className="mt-1 text-on-surface-variant text-xs">
+            Bạn có thể thêm người trả nếu chưa có trong danh sách
+          </p>
           <Select value={paidBy} onValueChange={setPaidBy}>
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Chọn người trả" />
@@ -229,9 +232,6 @@ export const AddExpenseForm = ({
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-on-surface-variant text-xs">
-            Nếu nhiều người cùng trả, hãy thêm mục riêng cho từng người.
-          </p>
         </div>
 
         <div>

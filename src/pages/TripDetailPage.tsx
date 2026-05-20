@@ -49,9 +49,9 @@ import {
 
 const TABS = [
   { value: "itinerary", label: "Lịch trình", icon: ClipboardList },
+  { value: "members", label: "Thành viên", icon: Users },
   { value: "expenses", label: "Chi tiêu", icon: DollarSign },
   { value: "balance", label: "Số dư", icon: Scale },
-  { value: "members", label: "Thành viên", icon: Users },
 ];
 
 const TripDetailPage = () => {
@@ -87,6 +87,7 @@ const TripDetailPage = () => {
     handleLeaveTrip,
     handleUpdateRole,
     handleCheckDuplicate,
+    handleCancelInvitation,
     handleCreateShareLink,
   } = useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
 
@@ -307,7 +308,7 @@ const TripDetailPage = () => {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
+                className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
               >
                 <tab.icon className="h-4 w-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -357,6 +358,8 @@ const TripDetailPage = () => {
                 costMembers={trip.costMembers ?? []}
                 currentUserRole={currentUserRole}
                 currentUserId={user?.uid}
+                currentUserEmail={user?.email ?? ""}
+                currentUserDisplayName={user?.displayName ?? undefined}
                 tripName={trip.name}
                 tripEndDate={trip.endDate.toDate().toISOString().split("T")[0]}
                 expenses={expenses}
@@ -371,6 +374,7 @@ const TripDetailPage = () => {
                 }}
                 onUpdateRole={handleUpdateRole}
                 onCheckDuplicate={handleCheckDuplicate}
+                onCancelInvitation={handleCancelInvitation}
                 onCreateShareLink={handleCreateShareLink}
               />
             </TabsContent>

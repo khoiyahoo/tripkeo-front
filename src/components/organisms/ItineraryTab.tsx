@@ -64,12 +64,7 @@ import {
 } from "@/constants/trip";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { cn } from "@/lib/utils";
-import {
-  formatCurrency,
-  formatCurrencyInput,
-  formatDate,
-  parseCurrencyInput,
-} from "@/utils/format";
+import { formatCurrency, formatDate } from "@/utils/format";
 
 import type {
   ActivityWithId,
@@ -287,7 +282,6 @@ const SortableActivityRow = ({
             endTime: activity.endTime ?? "",
             category: activity.category,
             location: activity.location ?? "",
-            costRaw: activity.cost != null ? String(activity.cost) : "",
             note: activity.note ?? "",
             period: getTimePeriod(activity.startTime),
           }}
@@ -333,7 +327,6 @@ interface ActivityFormValues {
   endTime: string;
   category: ActivityType;
   location: string;
-  costRaw: string;
   note: string;
   period: TimePeriod;
 }
@@ -344,7 +337,6 @@ const INITIAL_FORM: ActivityFormValues = {
   endTime: "",
   category: "sights",
   location: "",
-  costRaw: "",
   note: "",
   period: "morning",
 };
@@ -382,7 +374,6 @@ const ActivityForm = ({
   const [endTime, setEndTime] = useState(defaults.endTime);
   const [category, setCategory] = useState<ActivityType>(defaults.category);
   const [location, setLocation] = useState(defaults.location);
-  const [costRaw, setCostRaw] = useState(defaults.costRaw);
   const [note, setNote] = useState(defaults.note);
   const [period, setPeriod] = useState<TimePeriod>(defaults.period);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -401,7 +392,6 @@ const ActivityForm = ({
       endTime,
       category,
       location,
-      costRaw,
       note,
       period,
     });
@@ -412,7 +402,6 @@ const ActivityForm = ({
     endTime,
     category,
     location,
-    costRaw,
     note,
     period,
     saveDraft,
@@ -459,7 +448,6 @@ const ActivityForm = ({
         category,
         location: location.trim() || undefined,
         note: note.trim() || undefined,
-        cost: costRaw ? Number(costRaw) : undefined,
         order,
       });
       if (mode === "add") clearDraft();
@@ -498,7 +486,6 @@ const ActivityForm = ({
                     setEndTime(savedDraft.endTime);
                     setCategory(savedDraft.category);
                     setLocation(savedDraft.location);
-                    setCostRaw(savedDraft.costRaw);
                     setNote(savedDraft.note);
                     setPeriod(savedDraft.period);
                   }
@@ -613,7 +600,7 @@ const ActivityForm = ({
               htmlFor="act-start"
               className="flex items-center gap-1 text-xs"
             >
-              Giờ bắt đầu
+              Bắt đầu
               <span className="text-on-surface-variant/50">(tùy chọn)</span>
             </Label>
             <Input
@@ -678,22 +665,6 @@ const ActivityForm = ({
           />
         </div>
 
-        {/* Cost (optional) */}
-        <div>
-          <Label htmlFor="act-cost" className="flex items-center gap-1 text-xs">
-            Chi phí (₫)
-            <span className="text-on-surface-variant/50">(tùy chọn)</span>
-          </Label>
-          <Input
-            id="act-cost"
-            inputMode="numeric"
-            placeholder="0"
-            value={formatCurrencyInput(costRaw)}
-            onChange={(e) => setCostRaw(parseCurrencyInput(e.target.value))}
-            className="mt-1 h-8 text-sm"
-          />
-        </div>
-
         {/* Note (optional) */}
         <div>
           <Label htmlFor="act-note" className="flex items-center gap-1 text-xs">
@@ -743,6 +714,7 @@ const PeriodSection = ({
   setEditingActivityId,
   canEditActivity,
   canAdd,
+  currentUserRole,
 }: {
   period: TimePeriod;
   activities: ActivityWithId[];
@@ -761,6 +733,7 @@ const PeriodSection = ({
   setEditingActivityId: (id: string | null) => void;
   canEditActivity: (a: ActivityWithId) => boolean;
   canAdd: boolean;
+  currentUserRole?: TripRole;
 }) => {
   const { label } = TIME_PERIOD_CONFIG[period];
   const ui = PERIOD_UI[period];
@@ -825,12 +798,19 @@ const PeriodSection = ({
         /* Visual drop-zone shown when period is empty */
         <div
           className={cn(
-            "min-h-10 rounded-xl border-2 border-dashed transition-colors",
+            "flex min-h-10 items-center justify-center rounded-xl border-2 border-dashed p-3 text-sm text-white italic opacity-50 transition-colors",
             isDropOver
               ? "border-primary-400 bg-primary-900/20"
-              : "border-secondary-700/30"
+              : "border-secondary-700/30",
+            currentUserRole === "member" || currentUserRole === "treasurer"
+              ? "cursor-not-allowed opacity-50"
+              : "cursor-pointer"
           )}
-        />
+        >
+          {currentUserRole === "member" || currentUserRole === "treasurer"
+            ? "Thêm hoạt động"
+            : "Kéo hoạt động vào đây"}
+        </div>
       )}
 
       {/* Add button / form */}
@@ -1120,7 +1100,7 @@ export const ItineraryTab = ({
           return (
             <div
               key={day.date}
-              className="overflow-hidden rounded-2xl bg-secondary-900 shadow-sm ring-1 ring-black/5"
+              className="overflow-hidden rounded-2xl bg-surface-card shadow-sm ring-1 ring-black/5"
             >
               {/* Day header */}
               <div className="flex items-center gap-3 border-black/5 border-b px-4 py-3">
@@ -1161,6 +1141,7 @@ export const ItineraryTab = ({
                       setEditingActivityId={setEditingActivityId}
                       canEditActivity={canEditActivity}
                       canAdd={canAdd}
+                      currentUserRole={currentUserRole}
                     />
                   </div>
                 ))}

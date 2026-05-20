@@ -1,4 +1,11 @@
-import { AlertTriangle, Check, Loader2, MapPin } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Info,
+  Loader2,
+  MapPin,
+  RefreshCw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,19 +22,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   computeDateChangeImpact,
   type DateChangeImpact,
   useEditTrip,
 } from "@/hooks/useEditTrip";
 import { cn } from "@/lib/utils";
-import { timestampToDateStr } from "@/utils/format";
+import {
+  getStatusLabel,
+  getTripStatus,
+  timestampToDateStr,
+} from "@/utils/format";
 
 import type {
   ActivityWithId,
@@ -35,24 +45,17 @@ import type {
   TripWithId,
 } from "@/types/firestore";
 
-// ─── Constants ────────────────────────────────────────────────
-const COVER_IMAGES = [
-  "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=400&q=80",
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
-  "https://images.unsplash.com/photo-1528127269322-539801943592?w=400&q=80",
-  "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=400&q=80",
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80",
-  "https://images.unsplash.com/photo-1540979388-5b4b9b3c5e0d?w=400&q=80",
-];
+// ─── Picsum helpers ───────────────────────────────────────────
+const generateCoverSeed = (): string => Math.random().toString(36).slice(2, 10);
 
-const CURRENCIES = [
-  { value: "VND", label: "VND (₫)" },
-  { value: "USD", label: "USD ($)" },
-  { value: "EUR", label: "EUR (€)" },
-  { value: "JPY", label: "JPY (¥)" },
-  { value: "THB", label: "THB (฿)" },
-  { value: "SGD", label: "SGD (S$)" },
-];
+const picsumCoverUrl = (seed: string): string =>
+  `https://picsum.photos/seed/${seed}/1200/600`;
+
+const isPicsumUrl = (url: string): boolean =>
+  url.startsWith("https://picsum.photos/seed/");
+
+// ─── Constants ─────────────────────────────────────────────
+const LOCKED_TOOLTIP = "Không thể chỉnh sửa khi chuyến đi đã bắt đầu";
 
 const getTodayDateStr = (): string => {
   const now = new Date();
@@ -74,7 +77,6 @@ interface FormData {
   coverImage: string;
   startDate: string;
   endDate: string;
-  currency: string;
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -98,14 +100,18 @@ export const EditTripDialog = ({
   const oldStartStr = timestampToDateStr(trip.startDate);
   const oldEndStr = timestampToDateStr(trip.endDate);
 
+  // Determine if most fields are locked (trip has already started)
+  const isLocked = oldStartStr <= todayDateStr;
+
   const [formData, setFormData] = useState<FormData>({
     name: trip.name,
     destination: trip.destination,
     coverImage: trip.coverImage,
     startDate: oldStartStr,
     endDate: oldEndStr,
-    currency: trip.currency,
   });
+
+  const status = getTripStatus(trip.startDate, trip.endDate);
 
   // Sync form when dialog re-opens with potentially fresh trip data
   useEffect(() => {
@@ -116,7 +122,6 @@ export const EditTripDialog = ({
         coverImage: trip.coverImage,
         startDate: oldStartStr,
         endDate: oldEndStr,
-        currency: trip.currency,
       });
       setDateError(null);
     }
@@ -130,12 +135,13 @@ export const EditTripDialog = ({
     if (field === "startDate" || field === "endDate") setDateError(null);
   };
 
-  const isValid =
-    formData.name.trim() !== "" &&
-    formData.destination.trim() !== "" &&
-    formData.startDate !== "" &&
-    formData.endDate !== "" &&
-    formData.startDate <= formData.endDate;
+  const isValid = isLocked
+    ? formData.name.trim() !== ""
+    : formData.name.trim() !== "" &&
+      formData.destination.trim() !== "" &&
+      formData.startDate !== "" &&
+      formData.endDate !== "" &&
+      formData.startDate <= formData.endDate;
 
   const doSave = async (
     input: Partial<CreateTripInput>,
@@ -155,6 +161,14 @@ export const EditTripDialog = ({
 
   const handleSubmit = async () => {
     if (!isValid) return;
+
+    // When locked, only the trip name can be changed
+    if (isLocked) {
+      const input: Partial<CreateTripInput> = { name: formData.name.trim() };
+      await doSave(input, { toUpdate: [], toDelete: [] });
+      return;
+    }
+
     if (formData.startDate < todayDateStr) {
       setDateError("Ngày bắt đầu không thể trong quá khứ");
       return;
@@ -170,7 +184,6 @@ export const EditTripDialog = ({
       coverImage: formData.coverImage,
       startDate: formData.startDate,
       endDate: formData.endDate,
-      currency: formData.currency,
     };
 
     const datesChanged =
@@ -203,7 +216,7 @@ export const EditTripDialog = ({
   };
 
   return (
-    <>
+    <TooltipProvider>
       <Dialog
         open={isOpen}
         onOpenChange={(open) => {
@@ -217,49 +230,60 @@ export const EditTripDialog = ({
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="space-y-5">
-              {/* Cover image */}
-              <div>
-                <Label className="mb-2 block">Ảnh bìa</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {COVER_IMAGES.map((url) => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => updateField("coverImage", url)}
-                      className={cn(
-                        "relative aspect-video overflow-hidden rounded-lg border-2 transition-all",
-                        formData.coverImage === url
-                          ? "border-primary-500 ring-2 ring-primary-200"
-                          : "border-transparent hover:border-outline-variant"
-                      )}
-                    >
-                      <img
-                        src={url}
-                        alt="Cover"
-                        className="h-full w-full object-cover"
-                      />
-                      {formData.coverImage === url && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-primary-500/20">
-                          <Check className="h-5 w-5 text-white drop-shadow" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
+              {/* Locked notice */}
+              {isLocked && (
+                <div className="flex items-start gap-2 rounded-xl bg-warning-50 px-4 py-3 text-warning-700">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-sm">
+                    Chuyến đi{" "}
+                    <span className="lowercase">{getStatusLabel(status)}</span>.
+                    Chỉ có thể chỉnh sửa <strong>tên chuyến đi</strong>.
+                  </p>
                 </div>
-                <Input
-                  className="mt-2"
-                  placeholder="Hoặc nhập URL ảnh bìa..."
-                  value={
-                    COVER_IMAGES.includes(formData.coverImage)
-                      ? ""
-                      : formData.coverImage
-                  }
-                  onChange={(e) => {
-                    if (e.target.value)
-                      updateField("coverImage", e.target.value);
-                  }}
-                />
-              </div>
+              )}
+
+              {/* Cover image — hidden when locked */}
+              {!isLocked && (
+                <div>
+                  <Label className="mb-2 block">Ảnh bìa</Label>
+                  <div className="overflow-hidden rounded-xl border border-outline-variant">
+                    <img
+                      src={formData.coverImage}
+                      alt="Cover"
+                      className="h-36 w-full object-cover"
+                    />
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        updateField(
+                          "coverImage",
+                          picsumCoverUrl(generateCoverSeed())
+                        )
+                      }
+                    >
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                      Đổi ảnh
+                    </Button>
+                  </div>
+                  <Input
+                    className="mt-2"
+                    placeholder="Hoặc nhập URL ảnh bìa..."
+                    value={
+                      isPicsumUrl(formData.coverImage)
+                        ? ""
+                        : formData.coverImage
+                    }
+                    onChange={(e) => {
+                      if (e.target.value)
+                        updateField("coverImage", e.target.value);
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Name */}
               <div>
@@ -275,77 +299,96 @@ export const EditTripDialog = ({
 
               {/* Destination */}
               <div>
-                <Label htmlFor="edit-destination">Điểm đến *</Label>
-                <div className="relative mt-1.5">
-                  <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-                  <Input
-                    id="edit-destination"
-                    placeholder="Nhập điểm đến..."
-                    className="pl-9"
-                    value={formData.destination}
-                    onChange={(e) => updateField("destination", e.target.value)}
-                  />
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Label htmlFor="edit-destination">Điểm đến *</Label>
+                      <div className="relative mt-1.5">
+                        <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                        <Input
+                          id="edit-destination"
+                          placeholder="Nhập điểm đến..."
+                          className={cn(
+                            "pl-9",
+                            isLocked && "cursor-not-allowed opacity-50"
+                          )}
+                          value={formData.destination}
+                          disabled={isLocked}
+                          onChange={(e) =>
+                            updateField("destination", e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  {isLocked && (
+                    <TooltipContent>{LOCKED_TOOLTIP}</TooltipContent>
+                  )}
+                </Tooltip>
               </div>
 
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="edit-startDate">Ngày bắt đầu *</Label>
-                  <div className="relative mt-1.5">
-                    <DatePicker
-                      id="edit-startDate"
-                      value={formData.startDate}
-                      onChange={(val) => {
-                        updateField("startDate", val);
-                        if (formData.endDate && val > formData.endDate) {
-                          updateField("endDate", "");
-                        }
-                      }}
-                      minDate={todayDateStr}
-                      maxDate={formData.endDate || undefined}
-                      className="pl-9"
-                      placeholder="Chọn ngày bắt đầu"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="edit-endDate">Ngày kết thúc *</Label>
-                  <div className="relative mt-1.5">
-                    <DatePicker
-                      id="edit-endDate"
-                      value={formData.endDate}
-                      onChange={(val) => updateField("endDate", val)}
-                      minDate={formData.startDate || undefined}
-                      className="pl-9"
-                      placeholder="Chọn ngày kết thúc"
-                    />
-                  </div>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Label htmlFor="edit-startDate">Ngày bắt đầu *</Label>
+                      <div
+                        className={cn(
+                          "relative mt-1.5",
+                          isLocked && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <DatePicker
+                          id="edit-startDate"
+                          value={formData.startDate}
+                          onChange={(val) => {
+                            updateField("startDate", val);
+                            if (formData.endDate && val > formData.endDate) {
+                              updateField("endDate", "");
+                            }
+                          }}
+                          disabled={isLocked}
+                          minDate={todayDateStr}
+                          maxDate={formData.endDate || undefined}
+                          placeholder="Chọn ngày bắt đầu"
+                        />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  {isLocked && (
+                    <TooltipContent>{LOCKED_TOOLTIP}</TooltipContent>
+                  )}
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Label htmlFor="edit-endDate">Ngày kết thúc *</Label>
+                      <div
+                        className={cn(
+                          "relative mt-1.5",
+                          isLocked && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <DatePicker
+                          id="edit-endDate"
+                          value={formData.endDate}
+                          onChange={(val) => updateField("endDate", val)}
+                          disabled={isLocked}
+                          minDate={formData.startDate || undefined}
+                          placeholder="Chọn ngày kết thúc"
+                        />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  {isLocked && (
+                    <TooltipContent>{LOCKED_TOOLTIP}</TooltipContent>
+                  )}
+                </Tooltip>
               </div>
               {dateError && (
                 <p className="text-error-500 text-sm">{dateError}</p>
               )}
-
-              {/* Currency */}
-              <div>
-                <Label htmlFor="edit-currency">Đơn vị tiền tệ</Label>
-                <Select
-                  value={formData.currency}
-                  onValueChange={(val) => updateField("currency", val)}
-                >
-                  <SelectTrigger className="mt-1.5" id="edit-currency">
-                    <SelectValue placeholder="Chọn đơn vị tiền tệ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
 
@@ -400,6 +443,6 @@ export const EditTripDialog = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </TooltipProvider>
   );
 };

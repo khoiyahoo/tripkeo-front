@@ -12,6 +12,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -88,17 +89,22 @@ export const acceptInvitation = async (
     participationStart: new Date().toISOString().split("T")[0],
   };
 
-  const tripRef = doc(db, "trips", tripId);
+  // Use a batch write so both the trip-member update and the invitation
+  // status update succeed or fail together — prevents split-brain state
+  // where the member appears joined but the invitation stays "pending".
+  const batch = writeBatch(db);
 
-  await updateDoc(tripRef, {
+  batch.update(doc(db, "trips", tripId), {
     [`members.${userId}`]: memberInfo,
     memberIds: arrayUnion(userId),
     updatedAt: serverTimestamp(),
   });
 
-  await updateDoc(doc(db, "trips", tripId, "invitations", invitationId), {
+  batch.update(doc(db, "trips", tripId, "invitations", invitationId), {
     status: "accepted",
   });
+
+  await batch.commit();
 };
 
 export const removeMember = async (
@@ -209,6 +215,19 @@ export const findInvitationByCode = async (
 
 /** Decline an invitation */
 export const declineInvitation = async (
+  tripId: string,
+  invitationId: string
+): Promise<void> => {
+  await updateDoc(doc(db, "trips", tripId, "invitations", invitationId), {
+    status: "declined",
+  });
+};
+
+/**
+ * Cancel a pending invitation (e.g. before re-inviting a member who left/was removed).
+ * Marks status as "cancelled" so checkDuplicateInvitation will no longer block re-invites.
+ */
+export const cancelInvitation = async (
   tripId: string,
   invitationId: string
 ): Promise<void> => {

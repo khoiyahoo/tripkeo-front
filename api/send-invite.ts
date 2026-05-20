@@ -32,31 +32,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const appOrigin = new URL(inviteLink as string).origin;
   const logoUrl = `${appOrigin}/logo.webp`;
 
+  // App primary: #eb5757 (primary-500), button hover: #d84d4d (primary-600)
   const htmlContent = `
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 16px; color: #1a1a1a;">
-  <div style="text-align: center; margin-bottom: 28px;">
-    <img src="${logoUrl}" alt="TripKeo" style="height: 40px; object-fit: contain;" />
-  </div>
-  <h2 style="font-size: 20px; margin-bottom: 8px;">Xin chào!</h2>
-  <p style="font-size: 16px; line-height: 1.6;">
-    <strong>${fromName}</strong> đã mời bạn tham gia chuyến đi
-    <strong>"${tripName}"</strong> với vai trò <strong>${roleLabel}</strong>.
-  </p>
-  <p style="font-size: 16px; line-height: 1.6;">Nhấn vào nút bên dưới để tham gia:</p>
-  <div style="text-align: center; margin: 32px 0;">
-    <a href="${inviteLink}"
-       style="background: #0D9488; color: white; padding: 14px 32px;
-              border-radius: 10px; text-decoration: none; display: inline-block;
-              font-size: 16px; font-weight: 600;">
-      Tham gia ngay
-    </a>
-  </div>
-  <p style="color: #666; font-size: 14px;">Link sẽ hết hạn sau 7 ngày.</p>
-  <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;" />
-  <p style="color: #999; font-size: 12px; text-align: center;">— TripKeo Team</p>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${fromName} mời bạn tham gia "${tripName}"</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+          <!-- Header accent bar -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#eb5757 0%,#d84d4d 100%);height:6px;font-size:0;">&nbsp;</td>
+          </tr>
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:28px 32px 20px;">
+              <img src="${logoUrl}" alt="TripKeo" height="36" style="display:block;height:36px;object-fit:contain;" />
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:0 32px 32px;">
+              <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#1a1a1a;line-height:1.3;">Bạn nhận được lời mời!</h2>
+              <p style="margin:0 0 12px;font-size:16px;line-height:1.7;color:#444444;">
+                <strong style="color:#1a1a1a;">${fromName}</strong> đã mời bạn tham gia chuyến đi
+                <strong style="color:#eb5757;">"${tripName}"</strong>.
+              </p>
+              <!-- Role badge -->
+              <p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:#444444;">
+                Vai trò của bạn:
+                <span style="display:inline-block;background:#fff1f1;color:#eb5757;font-weight:600;font-size:14px;padding:3px 12px;border-radius:20px;border:1px solid #ffc5c5;">${roleLabel}</span>
+              </p>
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center" style="padding:8px 0 32px;">
+                    <a href="${inviteLink}"
+                       style="display:inline-block;background:#eb5757;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 40px;border-radius:10px;letter-spacing:0.2px;mso-padding-alt:0;text-align:center;">
+                      ✈&nbsp; Tham gia ngay
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 4px;font-size:13px;color:#888888;text-align:center;">Link sẽ hết hạn sau 7 ngày.</p>
+              <p style="margin:0;font-size:12px;color:#aaaaaa;text-align:center;word-break:break-all;">
+                <a href="${inviteLink}" style="color:#eb5757;text-decoration:none;">${inviteLink}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px;background:#fafafa;border-top:1px solid #f0f0f0;">
+              <p style="margin:0;font-size:12px;color:#999999;text-align:center;">
+                Email này được gửi tự động từ <strong style="color:#eb5757;">TripKeo</strong>. Vui lòng không trả lời email này.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
   `.trim();

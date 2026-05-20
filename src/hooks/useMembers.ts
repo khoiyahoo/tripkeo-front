@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { sendInviteEmail } from "@/services/emailService";
 import {
   acceptInvitation,
+  cancelInvitation,
   checkDuplicateInvitation,
   createShareLinkInvitation,
   declineInvitation,
@@ -104,6 +105,7 @@ interface UseTripMembersResult {
   handleLeaveTrip: (userId: string, participationEnd?: string) => Promise<void>;
   handleUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   handleCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
+  handleCancelInvitation: (invitationId: string) => Promise<void>;
   handleCreateShareLink: (
     role: "treasurer" | "editor" | "member"
   ) => Promise<string>;
@@ -170,6 +172,13 @@ export const useTripMembers = (
     [tripId]
   );
 
+  const handleCancelInvitation = useCallback(
+    (invitationId: string): Promise<void> => {
+      return cancelInvitation(tripId, invitationId);
+    },
+    [tripId]
+  );
+
   const handleCreateShareLink = useCallback(
     (role: "treasurer" | "editor" | "member"): Promise<string> => {
       if (!user) throw new Error("Not authenticated");
@@ -191,6 +200,7 @@ export const useTripMembers = (
     handleLeaveTrip,
     handleUpdateRole,
     handleCheckDuplicate,
+    handleCancelInvitation,
     handleCreateShareLink,
   };
 };

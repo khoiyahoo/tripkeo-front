@@ -70,6 +70,14 @@ const InvitePage = () => {
 
   const handleAccept = useCallback(async () => {
     if (!invitation || !user) return;
+
+    // Bug 3 fix: Block the invitation creator (owner) from accepting their own link,
+    // which would overwrite their role via the Firestore "owner can update anything" rule.
+    if (user.uid === invitation.invitedBy) {
+      setError("Bạn là chủ chuyến đi này và không thể tham gia qua link mời.");
+      return;
+    }
+
     setIsAccepting(true);
     try {
       await acceptInvitation(
@@ -83,8 +91,17 @@ const InvitePage = () => {
       );
       toast.success("Đã tham gia chuyến đi!");
       navigate({ to: "/trips/$tripId", params: { tripId: invitation.tripId } });
-    } catch {
-      toast.error("Không thể tham gia. Vui lòng thử lại.");
+    } catch (err) {
+      // Distinguish "already a member" (permission denied on trip update) from other errors
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes("permission") ||
+        message.includes("PERMISSION_DENIED")
+      ) {
+        setError("Bạn đã là thành viên của chuyến đi này rồi.");
+      } else {
+        toast.error("Không thể tham gia. Vui lòng thử lại.");
+      }
     } finally {
       setIsAccepting(false);
     }
@@ -134,15 +151,25 @@ const InvitePage = () => {
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface p-4">
-        <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-8 text-center shadow-lg">
-          <div className="mb-4 flex justify-center">
-            <img src={logoUrl} alt="TripKeo" className="h-9 object-contain" />
-          </div>
+        <div className="w-full max-w-md space-y-4 rounded-2xl bg-surface-card p-8 text-center shadow-lg">
           <XCircle className="mx-auto h-12 w-12 text-error-500" />
           <h2 className="font-semibold text-lg text-on-surface">{error}</h2>
-          <Button variant="outline" onClick={() => navigate({ to: "/" })}>
-            Về trang chủ
-          </Button>
+          {invitation ? (
+            <Button
+              onClick={() =>
+                navigate({
+                  to: "/trips/$tripId",
+                  params: { tripId: invitation.tripId },
+                })
+              }
+            >
+              Đến chuyến đi
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => navigate({ to: "/" })}>
+              Về trang chủ
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -166,10 +193,17 @@ const InvitePage = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-4">
-      <div className="w-full max-w-md space-y-5 rounded-2xl bg-white p-8 shadow-lg">
+      <div className="w-full max-w-md space-y-5 rounded-2xl bg-surface-card p-8 shadow-lg">
         {/* Header */}
-        <div className="flex justify-center">
-          <img src={logoUrl} alt="TripKeo" className="h-9 object-contain" />
+        <div className="flex items-end justify-center">
+          <img
+            src={logoUrl}
+            alt="TripKeo"
+            className="h-12 w-10 object-contain"
+          />
+          <span className="ml-1 font-bold text-primary-500 text-sm uppercase tracking-[0.28em]">
+            TRIPKEO
+          </span>
         </div>
 
         {/* Invite info */}

@@ -1,5 +1,4 @@
 import {
-  AlertCircle,
   Check,
   Copy,
   Crown,
@@ -78,6 +77,8 @@ interface MembersTabProps {
   costMembers: string[];
   currentUserRole: TripRole | undefined;
   currentUserId: string | undefined;
+  currentUserEmail?: string;
+  currentUserDisplayName?: string;
   tripName: string;
   tripEndDate: string;
   expenses: ExpenseWithId[];
@@ -89,6 +90,7 @@ interface MembersTabProps {
   onLeaveTrip: (userId: string, participationEnd?: string) => Promise<void>;
   onUpdateRole: (userId: string, newRole: TripRole) => Promise<void>;
   onCheckDuplicate: (email: string) => Promise<InvitationWithId | null>;
+  onCancelInvitation: (invitationId: string) => Promise<void>;
   onCreateShareLink: (
     role: "editor" | "treasurer" | "member"
   ) => Promise<string>;
@@ -100,6 +102,8 @@ export const MembersTab = ({
   costMembers,
   currentUserRole,
   currentUserId,
+  currentUserEmail,
+  currentUserDisplayName,
   tripName,
   tripEndDate,
   expenses,
@@ -111,6 +115,7 @@ export const MembersTab = ({
   onLeaveTrip,
   onUpdateRole,
   onCheckDuplicate,
+  onCancelInvitation,
   onCreateShareLink,
 }: MembersTabProps) => {
   const [newMemberName, setNewMemberName] = useState("");
@@ -146,7 +151,6 @@ export const MembersTab = ({
 
   const hasExpenses = expenses.length > 0;
   const isOwner = currentUserRole === "owner";
-  const isTreasurer = currentUserRole === "treasurer";
   const ownerName =
     Object.values(members).find((m) => m.role === "owner")?.displayName ?? "";
   const canLeave = currentUserRole !== undefined && currentUserRole !== "owner";
@@ -161,14 +165,12 @@ export const MembersTab = ({
     ([, m]) => m.status === "left" || m.status === "removed"
   );
 
-  const currentUserDisplayName = currentUserId
+  // The stored name in trip.members — used for balance lookup (matched by name string)
+  const memberDisplayName = currentUserId
     ? members[currentUserId]?.displayName
     : undefined;
   const currentUserBalance = balances?.find(
-    (b) => b.name === currentUserDisplayName
-  );
-  const hasTreasurerInGroup = activeEntries.some(
-    ([uid, m]) => m.role === "treasurer" && uid !== currentUserId
+    (b) => b.name === memberDisplayName
   );
 
   const handleAddCostMember = async () => {
@@ -244,21 +246,43 @@ export const MembersTab = ({
   const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) return;
+
+    // Bug 3 fix: Block self-invite
+    if (currentUserEmail && email === currentUserEmail.toLowerCase()) {
+      toast.error("Bạn không thể mời chính mình.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const existing = await onCheckDuplicate(email);
-      if (existing) {
-        toast.warning(`Đã gửi lời mời đến ${email} trước đó.`);
+      // Check if this email is already an active member
+      const isActiveMember = Object.values(members).some(
+        (m) =>
+          m.email?.toLowerCase() === email &&
+          (m.status ?? "active") === "active"
+      );
+      if (isActiveMember) {
+        toast.warning("Người này đã là thành viên của chuyến đi.");
         setIsSubmitting(false);
         return;
       }
+
+      // Check for an existing pending invitation
+      const existing = await onCheckDuplicate(email);
+      if (existing) {
+        // Bug 1 fix: A pending invite may be stale (left-over from a failed accept
+        // after the member was kicked/left). Since the email is NOT an active member
+        // (checked above), cancel the stale invite and proceed with a new one.
+        await onCancelInvitation(existing.id);
+      }
+
       await onInviteMember({ email, role: inviteRole });
       toast.success(`Đã gửi lời mời đến ${email}`);
       setInviteEmail("");
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       if (
-        message.includes("VITE_BREVO_API_KEY") ||
+        message.includes("BREVO_API_KEY") ||
         message.includes("send email") ||
         message.includes("Failed to send")
       ) {
@@ -400,19 +424,6 @@ export const MembersTab = ({
               </Button>
             </div>
           )}
-
-          {hasExpenses && isOwner && (
-            <p className="flex items-center gap-1 text-warning-600 text-xs">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Đã có chi tiêu — không thể thêm thành viên mới.
-            </p>
-          )}
-          {/* {costMembers.length < 2 && isOwner && (
-            <p className="flex items-center gap-1 text-warning-600 text-xs">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Cần ít nhất 2 thành viên để tạo chi tiêu.
-            </p>
-          )} */}
         </CardContent>
       </Card>
 
@@ -583,7 +594,11 @@ export const MembersTab = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate font-semibold text-on-surface text-sm">
-                        {member.displayName}
+                        {/* Bug fix: trip.members stores a snapshot of displayName at join time.
+                            Override with the live value from authStore for the current user. */}
+                        {uid === currentUserId
+                          ? (currentUserDisplayName ?? member.displayName)
+                          : member.displayName}
                       </span>
                       {member.role === "owner" && (
                         <Crown className="h-3.5 w-3.5 text-tertiary-500" />
@@ -827,18 +842,7 @@ export const MembersTab = ({
               được giữ lại.
             </DialogDescription>
           </DialogHeader>
-          {isTreasurer && !hasTreasurerInGroup && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <p className="font-medium">Bạn đang là thủ quỹ</p>
-                <p>
-                  Vui lòng chuyển quyền thủ quỹ cho thành viên khác trước khi
-                  rời.
-                </p>
-              </div>
-            </div>
-          )}
+
           {currentUserBalance && (
             <div className="rounded-lg border border-outline-variant bg-surface-dim/50 p-4 text-sm">
               <p className="mb-3 font-medium text-on-surface">
@@ -890,7 +894,7 @@ export const MembersTab = ({
             <Button
               variant="destructive"
               onClick={handleLeaveTrip}
-              disabled={isLeaving || (isTreasurer && !hasTreasurerInGroup)}
+              disabled={isLeaving}
             >
               {isLeaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
