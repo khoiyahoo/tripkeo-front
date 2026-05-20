@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { LogoutConfirmDialog } from "@/components/organisms/LogoutConfirmDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -39,11 +40,13 @@ const NAV_ITEMS: NavItem[] = [
 
 export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const { requireAuth } = useRequireAuth();
 
   const handleSignOut = useCallback((): void => {
     signOut().catch(() => null);
+    setIsLogoutOpen(false);
   }, []);
 
   const handleNavigate = (path: string) => {
@@ -155,7 +158,7 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
               variant="ghost"
               size="icon"
               title="Đăng xuất"
-              onClick={handleSignOut}
+              onClick={() => setIsLogoutOpen(true)}
               className="h-11 w-11 rounded-xl text-secondary-400 hover:bg-primary-500/12 hover:text-primary-400"
               aria-label="Đăng xuất"
             >
@@ -174,6 +177,12 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
           </Button>
         )}
       </aside>
+
+      <LogoutConfirmDialog
+        isOpen={isLogoutOpen}
+        onClose={() => setIsLogoutOpen(false)}
+        onConfirm={handleSignOut}
+      />
     </>
   );
 };

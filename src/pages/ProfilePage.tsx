@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { MainLayout } from "@/layouts/MainLayout";
 import { auth } from "@/lib/firebase";
@@ -31,6 +32,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency } from "@/utils/format";
 
 const ProfilePage = () => {
+  const { isAuthenticated } = useAuthGuard();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
 
@@ -44,6 +46,8 @@ const ProfilePage = () => {
     setEditName(user?.displayName ?? "");
     setIsEditOpen(true);
   };
+
+  if (!isAuthenticated) return null;
 
   const handleSaveName = async () => {
     const trimmed = editName.trim();
