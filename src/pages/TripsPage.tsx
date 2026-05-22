@@ -47,14 +47,14 @@ const TripCardItem = ({
   onClick: () => void;
 }) => (
   <Card
-    className="group cursor-pointer overflow-hidden border-none shadow-sm transition-shadow hover:shadow-md"
+    className="group relative cursor-pointer overflow-hidden rounded-md border-none"
     onClick={onClick}
   >
-    <div className="relative h-40 overflow-hidden">
+    <div className="relative h-42 overflow-hidden">
       <img
         src={trip.coverImage}
         alt={trip.name}
-        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+        className="h-full w-full rounded-md object-cover transition-transform"
       />
       <Badge
         className={`absolute top-3 right-3 ${getStatusColor(trip.status)}`}
@@ -62,8 +62,12 @@ const TripCardItem = ({
         {getStatusLabel(trip.status)}
       </Badge>
     </div>
-    <CardContent className="p-4">
-      <h3 className="truncate font-semibold text-on-surface">{trip.name}</h3>
+    <div className="absolute top-1/2 -left-4.5 z-2 h-5 w-8.5 rounded-[20px] bg-surface"></div>
+    <div className="absolute top-1/2 -right-4.5 z-2 h-5 w-8.5 rounded-[20px] bg-surface"></div>
+    <CardContent className="p-2">
+      <h3 className="truncate pt-2 font-semibold text-on-surface">
+        {trip.name}
+      </h3>
       <div className="mt-2 flex flex-col gap-1 text-on-surface-variant text-sm">
         <span className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5" />
@@ -74,7 +78,7 @@ const TripCardItem = ({
           {formatDateRange(trip.startDate, trip.endDate)}
         </span>
       </div>
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex items-center justify-between border-neutral-600 border-t pt-3">
         <div className="flex -space-x-2">
           {trip.memberAvatars.slice(0, 3).map((avatar) => (
             <Avatar

@@ -32,7 +32,7 @@ export function useCommunity(): UseCommunityResult {
   const [hasMore, setHasMore] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [region, setRegion] = useState<CommunityRegion | "all">("all");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [_, setRefreshKey] = useState(0);
 
   const lastDocRef = useRef<DocumentSnapshot | null>(null);
 

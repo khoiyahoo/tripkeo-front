@@ -1,3 +1,4 @@
+import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Heart,
@@ -7,19 +8,18 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MainLayout } from "@/layouts/MainLayout";
+import { ACTIVITY_TYPE_CONFIG } from "@/constants/trip";
 import { usePost } from "@/hooks/usePost";
+import { MainLayout } from "@/layouts/MainLayout";
+import { cn } from "@/lib/utils";
 import { createTrip } from "@/services/tripService";
 import { useAuthStore } from "@/stores/authStore";
-import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import { ACTIVITY_TYPE_CONFIG } from "@/constants/trip";
 
 import type { ActivityType } from "@/types/trip";
 
@@ -160,7 +160,7 @@ export default function PostDetailPage() {
 
   return (
     <MainLayout currentPath="/community">
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6">
+      <div className="mx-auto h-screen max-w-2xl space-y-6 rounded-md bg-surface-card px-4 py-6 sm:px-6">
         {/* Back button */}
         <Button
           variant="ghost"
@@ -195,7 +195,7 @@ export default function PostDetailPage() {
               Điểm đến: <strong>{post.destination}</strong>
             </p>
           )}
-          <p className="mt-3 whitespace-pre-wrap text-on-surface text-base leading-relaxed">
+          <p className="mt-3 whitespace-pre-wrap text-base text-on-surface leading-relaxed">
             {post.content}
           </p>
         </div>
@@ -255,7 +255,7 @@ export default function PostDetailPage() {
                         >
                           <span>{cfg?.icon ?? "📌"}</span>
                           {a.startTime && (
-                            <span className="font-mono text-xs text-on-surface-variant/60">
+                            <span className="font-mono text-on-surface-variant/60 text-xs">
                               {a.startTime}
                             </span>
                           )}
@@ -285,13 +285,13 @@ export default function PostDetailPage() {
               <div className="mb-3 flex flex-wrap gap-4">
                 <div>
                   <p className="text-on-surface-variant text-xs">Tổng chi</p>
-                  <p className="font-bold text-tertiary-500 text-lg">
+                  <p className="font-bold text-lg text-tertiary-500">
                     {formatCurrency(post.expenseSnapshot.total)}
                   </p>
                 </div>
                 <div>
                   <p className="text-on-surface-variant text-xs">Số người</p>
-                  <p className="font-bold text-on-surface text-lg">
+                  <p className="font-bold text-lg text-on-surface">
                     {post.expenseSnapshot.memberCount}
                   </p>
                 </div>
@@ -299,7 +299,7 @@ export default function PostDetailPage() {
                   <p className="text-on-surface-variant text-xs">
                     Bình quân/người
                   </p>
-                  <p className="font-bold text-primary-500 text-lg">
+                  <p className="font-bold text-lg text-primary-500">
                     ~{formatCurrency(post.expenseSnapshot.perPerson)}
                   </p>
                 </div>
@@ -331,7 +331,7 @@ export default function PostDetailPage() {
             type="button"
             onClick={handleLike}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium text-sm transition-colors",
               isLiked
                 ? "bg-primary-500/10 text-primary-500"
                 : "text-on-surface-variant hover:bg-secondary-800"
