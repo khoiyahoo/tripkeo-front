@@ -1,4 +1,5 @@
 import {
+  Globe,
   LayoutDashboard,
   LogOut,
   Map as MapIcon,
@@ -34,6 +35,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: MapIcon, label: "Chuyến đi", path: "/trips" },
+  { icon: Globe, label: "Cộng đồng", path: "/community" },
   { icon: UserRound, label: "Hồ sơ", path: "/profile" },
   { icon: Settings, label: "Cài đặt", path: "/settings" },
 ];

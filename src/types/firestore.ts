@@ -59,6 +59,10 @@ export interface ActivityDoc {
   note?: string;
   cost?: number;
   order: number;
+  /** Latitude (WGS84). Populated by geocoding after creation. */
+  lat?: number;
+  /** Longitude (WGS84). Populated by geocoding after creation. */
+  lng?: number;
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -129,7 +133,37 @@ export interface ExpenseWithId extends ExpenseDoc {
 export interface InvitationWithId extends InvitationDoc {
   id: string;
 }
+// ─── Personal Activity (subcollection: trips/{tripId}/personalActivities) ─
+// Private to each user — only the owner (userId) can read/write.
 
+export interface PersonalActivityDoc {
+  date: string; // YYYY-MM-DD
+  title: string;
+  startTime?: string; // HH:mm, optional
+  endTime?: string;
+  category: ActivityType;
+  note?: string;
+  /** Display order within the same date (for drag-and-drop reordering) */
+  order?: number;
+  /** The uid of the user who owns this personal activity. */
+  userId: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface PersonalActivityWithId extends PersonalActivityDoc {
+  id: string;
+}
+
+export interface CreatePersonalActivityInput {
+  date: string;
+  title: string;
+  startTime?: string;
+  endTime?: string;
+  category: ActivityType;
+  note?: string;
+  order?: number;
+}
 // ─── Form input types ────────────────────────────────────────
 export interface InvitedMember {
   email: string;
@@ -161,6 +195,9 @@ export interface CreateActivityInput {
   note?: string;
   cost?: number;
   order: number;
+  /** Geocoded coordinates — set by fire-and-forget geocoder, not user input */
+  lat?: number;
+  lng?: number;
 }
 
 export interface CreateExpenseInput {

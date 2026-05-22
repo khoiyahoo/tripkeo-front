@@ -20,14 +20,14 @@ export const TIME_PERIOD_CONFIG: Record<
   afternoon: {
     label: "Chiều",
     icon: "☀️",
-    defaultTime: "13:00",
+    defaultTime: "12:00",
     startHour: 12,
     endHour: 18, // 12:00 – 17:59
   },
   evening: {
     label: "Tối",
     icon: "🌙",
-    defaultTime: "19:00",
+    defaultTime: "18:00",
     startHour: 18,
     endHour: 3, // 18:00 – 02:59 (wraps around midnight)
   },

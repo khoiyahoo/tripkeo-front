@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { geocodeLocation } from "@/services/geocodingService";
 
 import type {
   ActivityDoc,
@@ -48,6 +49,26 @@ export const createActivity = async (
   };
 
   const docRef = await addDoc(activitiesRef(tripId), activityData);
+
+  // Fire-and-forget geocode: use location if provided, else fall back to activity title
+  const geocodeQuery = input.location?.trim() || input.title?.trim();
+  if (geocodeQuery) {
+    geocodeLocation(geocodeQuery)
+      .then((coords) => {
+        if (coords) {
+          updateDoc(doc(db, "trips", tripId, "activities", docRef.id), {
+            lat: coords.lat,
+            lng: coords.lng,
+          }).catch(() => {
+            /* non-critical */
+          });
+        }
+      })
+      .catch(() => {
+        /* non-critical */
+      });
+  }
+
   return docRef.id;
 };
 
@@ -64,6 +85,25 @@ export const updateActivity = async (
     ...clean,
     updatedAt: serverTimestamp(),
   });
+
+  // Fire-and-forget geocode when location or title changes
+  const geocodeQuery = data.location?.trim() || data.title?.trim();
+  if (geocodeQuery) {
+    geocodeLocation(geocodeQuery)
+      .then((coords) => {
+        if (coords) {
+          updateDoc(doc(db, "trips", tripId, "activities", activityId), {
+            lat: coords.lat,
+            lng: coords.lng,
+          }).catch(() => {
+            /* non-critical */
+          });
+        }
+      })
+      .catch(() => {
+        /* non-critical */
+      });
+  }
 };
 
 export const deleteActivity = async (

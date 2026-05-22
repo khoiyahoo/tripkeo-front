@@ -8,11 +8,13 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { LoginDialog } from "@/components/organisms/LoginDialog";
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
+import CommunityPage from "@/pages/CommunityPage";
 import CreateTripPage from "@/pages/CreateTripPage";
 import FriendsPage from "@/pages/FriendsPage";
 import HomePage from "@/pages/HomePage";
 import InvitePage from "@/pages/InvitePage";
 import LoginPage from "@/pages/LoginPage";
+import PostDetailPage from "@/pages/PostDetailPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import TripDetailPage from "@/pages/TripDetailPage";
@@ -97,6 +99,18 @@ const friendsRoute = createRoute({
   component: FriendsPage,
 });
 
+const communityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/community",
+  component: CommunityPage,
+});
+
+const postDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/community/$postId",
+  component: PostDetailPage,
+});
+
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$inviteCode",
@@ -113,6 +127,8 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   friendsRoute,
   inviteRoute,
+  communityRoute,
+  postDetailRoute,
 ]);
 
 export const router = createRouter({

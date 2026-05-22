@@ -5,7 +5,6 @@ import {
   ClipboardList,
   DollarSign,
   Loader2,
-  Map as MapIcon,
   MapPin,
   Pencil,
   Scale,
@@ -17,6 +16,8 @@ import { useState } from "react";
 import { BalanceTab } from "@/components/organisms/BalanceTab";
 import { EditTripDialog } from "@/components/organisms/EditTripDialog";
 import { ExpensesTab } from "@/components/organisms/ExpensesTab";
+import type { TripMeta } from "@/components/organisms/ItineraryPdfExport";
+import { ItineraryPdfExport } from "@/components/organisms/ItineraryPdfExport";
 import { ItineraryTab } from "@/components/organisms/ItineraryTab";
 import { MembersTab } from "@/components/organisms/MembersTab";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useItinerary } from "@/hooks/useItinerary";
 import { useTripMembers } from "@/hooks/useMembers";
+import { usePersonalItinerary } from "@/hooks/usePersonalItinerary";
 import { useTrip } from "@/hooks/useTrip";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -63,6 +65,7 @@ const TripDetailPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("itinerary");
   const {
     activities,
     isLoading: isActivitiesLoading,
@@ -71,6 +74,7 @@ const TripDetailPage = () => {
     handleDeleteActivity,
     handleBatchUpdateOrders,
   } = useItinerary(tripId);
+  const { activities: personalActivities } = usePersonalItinerary(tripId);
   const {
     expenses,
     summary,
@@ -170,6 +174,16 @@ const TripDetailPage = () => {
       return acc;
     },
     {} as Record<string, typeof activities>
+  );
+
+  // Group personal activities by date for PDF export
+  const personalActivitiesByDate = personalActivities.reduce(
+    (acc, a) => {
+      if (!acc[a.date]) acc[a.date] = [];
+      acc[a.date].push(a);
+      return acc;
+    },
+    {} as Record<string, typeof personalActivities>
   );
 
   return (
@@ -302,25 +316,38 @@ const TripDetailPage = () => {
         />
 
         {/* Tabs */}
-        <Tabs defaultValue="itinerary" className="w-full">
-          <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
-            {TABS.map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
-              >
-                <tab.icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Sticky zone: tab bar + itinerary export button */}
+          <div className="sticky top-0 z-20 -mx-4 bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div className="flex items-center justify-between gap-2">
+              <TabsList className="flex h-auto flex-1 justify-start gap-1 overflow-x-auto bg-transparent p-0">
+                {TABS.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
+                  >
+                    <tab.icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {/* PDF export — always visible when on itinerary tab */}
+              {activeTab === "itinerary" && tripMeta && (
+                <ItineraryPdfExport
+                  tripMeta={tripMeta as TripMeta}
+                  days={days}
+                  activitiesByDate={activitiesByDate}
+                  personalActivitiesByDate={personalActivitiesByDate}
+                />
+              )}
+            </div>
+          </div>
 
           <div className="mt-6">
             <TabsContent value="itinerary">
               <ItineraryTab
                 tripId={tripId}
-                tripMeta={tripMeta}
                 days={days}
                 activitiesByDate={activitiesByDate}
                 isLoading={isActivitiesLoading}
@@ -377,16 +404,6 @@ const TripDetailPage = () => {
                 onCancelInvitation={handleCancelInvitation}
                 onCreateShareLink={handleCreateShareLink}
               />
-            </TabsContent>
-            <TabsContent value="map">
-              <div className="flex h-96 flex-col items-center justify-center rounded-2xl bg-surface-dim/50">
-                <MapIcon className="mb-3 h-12 w-12 text-on-surface-variant/50" />
-                <p className="font-medium text-on-surface">Bản đồ chuyến đi</p>
-                <p className="mt-1 text-on-surface-variant text-sm">
-                  Tích hợp Google Maps sẽ hiển thị tất cả các điểm trong lịch
-                  trình
-                </p>
-              </div>
             </TabsContent>
           </div>
         </Tabs>

@@ -22,7 +22,9 @@ export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
         <div className="absolute -bottom-32 left-[20%] h-80 w-80 rounded-full bg-secondary-500/10 blur-3xl" />
       </div>
       <Sidebar currentPath={currentPath} onNavigate={handleNavigate} />
-      <main className="relative z-10 flex-1 overflow-x-hidden">
+      {/* overflow-x-clip instead of overflow-x-hidden: clip does not create a Block Formatting Context,
+           which allows position:sticky to work correctly in descendant elements. */}
+      <main className="relative z-10 flex-1 overflow-x-clip">
         <div className="p-4 pt-16 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>

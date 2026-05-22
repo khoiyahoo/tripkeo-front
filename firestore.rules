@@ -146,6 +146,68 @@ service cloud.firestore {
         allow delete: if request.auth != null
           && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner';
       }
+
+      // ─── Personal Activities (subcollection) ──────
+      // Only the activity owner (userId field) can read/write their own entries.
+      // They must also be a member of the trip.
+      match /personalActivities/{activityId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.auth.uid == resource.data.userId;
+
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.auth.uid == request.resource.data.userId;
+
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.auth.uid == resource.data.userId
+          && request.auth.uid == request.resource.data.userId;
+
+        allow delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.auth.uid == resource.data.userId;
+      }
+    }
+
+    // ─── Community Posts ────────────────────────────
+    match /communityPosts/{postId} {
+      // Anyone can read posts (public)
+      allow read: if true;
+
+      // Authenticated users can create posts
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.authorId;
+
+      // Author can update/delete their own post
+      allow update: if request.auth != null
+        && (
+          request.auth.uid == resource.data.authorId
+          // Allow likeCount/commentCount/cloneCount updates (transactions from any authenticated user)
+          || (
+            request.auth != null
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['likeCount', 'commentCount', 'cloneCount'])
+          )
+        );
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.authorId;
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow delete: if request.auth != null
+          && (request.auth.uid == resource.data.authorId
+             || request.auth.uid == get(/databases/$(database)/documents/communityPosts/$(postId)).data.authorId);
+      }
+
+      // Likes subcollection (doc id = userId)
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
     }
   }
 }

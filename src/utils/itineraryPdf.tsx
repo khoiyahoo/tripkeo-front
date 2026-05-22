@@ -19,7 +19,7 @@ import {
   TIME_PERIODS,
 } from "@/constants/trip";
 
-import type { ActivityWithId } from "@/types/firestore";
+import type { ActivityWithId, PersonalActivityWithId } from "@/types/firestore";
 import type { TimePeriod } from "@/types/trip";
 
 // ─── Font Registration ────────────────────────────────────────
@@ -51,6 +51,10 @@ export interface ItineraryPdfProps {
   tripMeta: TripMeta;
   days: { dayNumber: number; date: string }[];
   activitiesByDate: Record<string, ActivityWithId[]>;
+  /** Optional personal activities to include as a separate section. */
+  personalActivitiesByDate?: Record<string, PersonalActivityWithId[]>;
+  /** Shared activities lookup (same source as activitiesByDate, flattened) for conflict markers. */
+  allSharedActivities?: ActivityWithId[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -70,19 +74,24 @@ const formatCurrency = (amount: number): string =>
 
 // ─── Styles ───────────────────────────────────────────────────
 const C = {
-  teal: "#0d9488",
-  tealLight: "#e6f7f5",
-  tealBorder: "#99e0d9",
-  dayBg: "#f0fdf9",
+  // primary: red (#eb5757) — used for document header/title
+  primary: "#eb5757",
+  primaryLight: "#fff1f1",
+  primaryBorder: "#ffc5c5",
+  // tertiary: amber (#f0a500) — used for itinerary section headers
+  tertiary: "#f0a500",
+  tertiaryLight: "#fff8e6",
+  tertiaryBorder: "#ffdf80",
+  dayBg: "#fff8e6",
   periodBg: "#f8fafc",
-  headerBg: "#0f766e",
+  headerBg: "#eb5757",
   border: "#e2e8f0",
   text: "#1e293b",
   textMuted: "#64748b",
   white: "#ffffff",
-  amber: "#92400e",
-  amberBg: "#fffbeb",
-  orange: "#9a3412",
+  amber: "#805500",
+  amberBg: "#fff8e6",
+  orange: "#a56f00",
   indigo: "#3730a3",
 };
 
@@ -108,7 +117,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 2,
-    borderBottomColor: C.teal,
+    borderBottomColor: C.primary,
   },
   tripTitle: {
     fontSize: 18,
@@ -158,14 +167,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: C.dayBg,
     borderTopWidth: 1,
-    borderTopColor: C.tealBorder,
+    borderTopColor: C.tertiaryBorder,
     paddingVertical: 5,
     paddingHorizontal: 8,
   },
   dayHeaderText: {
     fontWeight: 700,
     fontSize: 9.5,
-    color: C.headerBg,
+    color: C.tertiary,
   },
   dayCount: {
     marginLeft: 6,
@@ -267,6 +276,8 @@ export const ItineraryPdfDocument = ({
   tripMeta,
   days,
   activitiesByDate,
+  personalActivitiesByDate,
+  allSharedActivities = [],
 }: ItineraryPdfProps) => {
   const totalActivities = Object.values(activitiesByDate).reduce(
     (sum, acts) => sum + acts.length,
@@ -488,6 +499,180 @@ export const ItineraryPdfDocument = ({
           fixed
         />
       </Page>
+
+      {/* ── Personal itinerary — page break (only if there are personal activities) ── */}
+      {personalActivitiesByDate &&
+        days.some(
+          (d) => (personalActivitiesByDate[d.date] ?? []).length > 0
+        ) && (
+          <Page size="A4" orientation="landscape" style={styles.page}>
+            {/* Personal page header */}
+            <View style={[styles.header, { borderBottomColor: C.primary }]}>
+              <Text style={styles.tripTitle}>{tripMeta.title}</Text>
+              <View style={styles.headerMeta}>
+                <Text style={styles.headerMetaText}>📝 Lịch trình cá nhân</Text>
+              </View>
+            </View>
+
+            <View style={styles.table}>
+              <ColHeaders />
+
+              {days.map((day) => {
+                const personalActs = personalActivitiesByDate[day.date] ?? [];
+                if (personalActs.length === 0) return null;
+
+                const byPeriod: Record<TimePeriod, PersonalActivityWithId[]> = {
+                  morning: [],
+                  afternoon: [],
+                  evening: [],
+                };
+                for (const a of personalActs) {
+                  byPeriod[getTimePeriod(a.startTime)].push(a);
+                }
+                for (const p of TIME_PERIODS) {
+                  byPeriod[p].sort((a, b) => {
+                    const oc = (a.order ?? 9999) - (b.order ?? 9999);
+                    return oc !== 0
+                      ? oc
+                      : (a.startTime ?? "").localeCompare(b.startTime ?? "");
+                  });
+                }
+
+                return (
+                  <View key={day.date}>
+                    <View style={styles.dayHeaderRow}>
+                      <Text style={styles.dayHeaderText}>
+                        {`Ngày ${day.dayNumber}  –  ${formatDate(day.date)}`}
+                      </Text>
+                      <Text style={styles.dayCount}>
+                        ({personalActs.length} hoạt động)
+                      </Text>
+                    </View>
+                    {TIME_PERIODS.map((period) => {
+                      const acts = byPeriod[period];
+                      if (acts.length === 0) return null;
+                      const pColors = PERIOD_COLORS[period];
+                      const pLabel = TIME_PERIOD_CONFIG[period].label;
+                      return (
+                        <View key={period}>
+                          <View
+                            style={[
+                              styles.periodRow,
+                              { backgroundColor: pColors.bg },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.periodLabel,
+                                { color: pColors.text },
+                              ]}
+                            >
+                              {pLabel}
+                            </Text>
+                          </View>
+                          {acts.map((pa, idx) => {
+                            const typeConfig =
+                              ACTIVITY_TYPE_CONFIG[pa.category];
+                            const hasConflict =
+                              pa.startTime !== undefined &&
+                              allSharedActivities.some(
+                                (s) =>
+                                  s.date === pa.date &&
+                                  s.startTime === pa.startTime
+                              );
+                            return (
+                              <View
+                                key={pa.id}
+                                style={[
+                                  styles.activityRow,
+                                  ...(idx % 2 !== 0
+                                    ? [styles.activityRowAlt]
+                                    : []),
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.cell,
+                                    styles.colTime,
+                                    styles.cellMuted,
+                                  ]}
+                                >
+                                  {pa.startTime ?? "—"}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.cell,
+                                    styles.colActivity,
+                                    styles.cellBold,
+                                  ]}
+                                >
+                                  {pa.title}
+                                  {hasConflict ? " ⚠️" : ""}
+                                </Text>
+                                <Text style={[styles.cell, styles.colType]}>
+                                  {typeConfig.label}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.cell,
+                                    styles.colLocation,
+                                    styles.cellMuted,
+                                  ]}
+                                >
+                                  —
+                                </Text>
+                                <Text style={[styles.cell, styles.colCost]}>
+                                  —
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.cell,
+                                    styles.colNote,
+                                    styles.cellMuted,
+                                  ]}
+                                >
+                                  {pa.note ?? "—"}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Footer (same as page 1) */}
+            <View style={styles.footer} fixed>
+              <Text style={styles.footerText}>
+                {tripMeta.memberNames.length > 0
+                  ? `Thành viên: ${tripMeta.memberNames.join(", ")}`
+                  : ""}
+              </Text>
+              <Text style={styles.footerText}>
+                {`Xuất lúc ${generatedOn}  •  TripKeo`}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.footerText,
+                {
+                  position: "absolute",
+                  bottom: 16,
+                  left: 0,
+                  right: 0,
+                  textAlign: "center",
+                },
+              ]}
+              render={({ pageNumber, totalPages }) =>
+                `${pageNumber} / ${totalPages}`
+              }
+              fixed
+            />
+          </Page>
+        )}
     </Document>
   );
 };

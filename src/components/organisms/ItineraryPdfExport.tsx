@@ -4,47 +4,29 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import type { TripMeta } from "@/utils/itineraryPdf";
 import { ItineraryPdfDocument } from "@/utils/itineraryPdf";
 
-import type { ActivityWithId } from "@/types/firestore";
+import type { ActivityWithId, PersonalActivityWithId } from "@/types/firestore";
 
 // Re-export so TripDetailPage only imports from this file
 export type { TripMeta };
-
-// PDFViewer only renders when the dialog is open (isPreviewOpen gate)
-// so it does not affect initial page load performance.
-const LazyPdfViewer = ({
-  tripMeta,
-  days,
-  activitiesByDate,
-}: {
-  tripMeta: TripMeta;
-  days: { dayNumber: number; date: string }[];
-  activitiesByDate: Record<string, ActivityWithId[]>;
-}) => {
-  return (
-    <PDFViewer width="100%" height="100%" showToolbar>
-      <ItineraryPdfDocument
-        tripMeta={tripMeta}
-        days={days}
-        activitiesByDate={activitiesByDate}
-      />
-    </PDFViewer>
-  );
-};
 
 // ─── Props ────────────────────────────────────────────────────
 interface ItineraryPdfExportProps {
   tripMeta: TripMeta;
   days: { dayNumber: number; date: string }[];
   activitiesByDate: Record<string, ActivityWithId[]>;
+  /** Optional personal activities; when provided, shows checkbox to include. */
+  personalActivitiesByDate?: Record<string, PersonalActivityWithId[]>;
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -52,13 +34,18 @@ export const ItineraryPdfExport = ({
   tripMeta,
   days,
   activitiesByDate,
+  personalActivitiesByDate,
 }: ItineraryPdfExportProps) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [includePersonal, setIncludePersonal] = useState(true);
 
   const fileName = `${tripMeta.title.replace(/\s+/g, "_")}_lich_trinh.pdf`;
 
-  // Total activities across all days – used to gate PDF generation
+  const hasPersonal =
+    personalActivitiesByDate !== undefined &&
+    Object.values(personalActivitiesByDate).some((a) => a.length > 0);
+
   const totalActivities = Object.values(activitiesByDate).reduce(
     (sum, acts) => sum + acts.length,
     0
@@ -71,7 +58,6 @@ export const ItineraryPdfExport = ({
       );
       return true;
     }
-    // Check every day has at least one activity
     const emptyDays = days.filter(
       (d) => (activitiesByDate[d.date] ?? []).length === 0
     );
@@ -85,16 +71,21 @@ export const ItineraryPdfExport = ({
     return false;
   };
 
-  const getBlob = (): Promise<Blob> => {
-    const doc = (
-      <ItineraryPdfDocument
-        tripMeta={tripMeta}
-        days={days}
-        activitiesByDate={activitiesByDate}
-      />
-    );
-    return pdf(doc).toBlob();
-  };
+  const allShared = Object.values(activitiesByDate).flat();
+
+  const buildDoc = () => (
+    <ItineraryPdfDocument
+      tripMeta={tripMeta}
+      days={days}
+      activitiesByDate={activitiesByDate}
+      personalActivitiesByDate={
+        includePersonal && hasPersonal ? personalActivitiesByDate : undefined
+      }
+      allSharedActivities={allShared}
+    />
+  );
+
+  const getBlob = (): Promise<Blob> => pdf(buildDoc()).toBlob();
 
   const handleDownload = async () => {
     if (guardEmpty()) return;
@@ -123,7 +114,6 @@ export const ItineraryPdfExport = ({
     try {
       const blob = await getBlob();
       const file = new File([blob], fileName, { type: "application/pdf" });
-
       if (
         typeof navigator.share === "function" &&
         navigator.canShare?.({ files: [file] })
@@ -134,7 +124,6 @@ export const ItineraryPdfExport = ({
           text: `Lịch trình chuyến đi ${tripMeta.title}`,
         });
       } else {
-        // Fallback: download then notify
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -146,7 +135,6 @@ export const ItineraryPdfExport = ({
         toast.info("PDF đã được tải về – bạn có thể chia sẻ file này");
       }
     } catch (err) {
-      // User cancelled share dialog – not an error
       if (err instanceof Error && err.name !== "AbortError") {
         toast.error("Không thể chia sẻ PDF. Vui lòng thử lại.");
       }
@@ -157,8 +145,24 @@ export const ItineraryPdfExport = ({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        {/* Preview */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Personal itinerary checkbox */}
+        {hasPersonal && (
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id="include-personal-pdf"
+              checked={includePersonal}
+              onCheckedChange={(v) => setIncludePersonal(!!v)}
+            />
+            <Label
+              htmlFor="include-personal-pdf"
+              className="cursor-pointer text-xs"
+            >
+              Bao gồm lịch trình cá nhân
+            </Label>
+          </div>
+        )}
+
         <Button
           variant="outline"
           size="sm"
@@ -172,7 +176,6 @@ export const ItineraryPdfExport = ({
           Xem PDF
         </Button>
 
-        {/* Download */}
         <Button
           variant="outline"
           size="sm"
@@ -188,7 +191,6 @@ export const ItineraryPdfExport = ({
           Tải PDF
         </Button>
 
-        {/* Share */}
         <Button
           variant="outline"
           size="sm"
@@ -231,11 +233,9 @@ export const ItineraryPdfExport = ({
 
           <div className="min-h-0 flex-1">
             {isPreviewOpen && (
-              <LazyPdfViewer
-                tripMeta={tripMeta}
-                days={days}
-                activitiesByDate={activitiesByDate}
-              />
+              <PDFViewer width="100%" height="100%" showToolbar>
+                {buildDoc()}
+              </PDFViewer>
             )}
           </div>
         </DialogContent>
