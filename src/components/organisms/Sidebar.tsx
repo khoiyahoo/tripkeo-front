@@ -96,7 +96,7 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
             className="flex items-center gap-3 lg:gap-0"
             aria-label="Đi đến Dashboard"
           >
-            <img src={logo} alt="TripKeo Logo" className="h-12 w-10" />
+            <img src={logo} alt="TripKeo Logo" className="size-10" />
           </button>
           <button
             type="button"
