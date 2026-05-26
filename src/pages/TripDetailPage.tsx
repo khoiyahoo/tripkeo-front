@@ -39,6 +39,10 @@ import { usePersonalItinerary } from "@/hooks/usePersonalItinerary";
 import { useTrip } from "@/hooks/useTrip";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import {
+  countPostsByTripId,
+  deletePostsByTripId,
+} from "@/services/communityService";
 import { addCostMember, removeCostMember } from "@/services/tripService";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -64,6 +68,7 @@ const TripDetailPage = () => {
   const { handleDeleteTrip } = useTrips();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [linkedPostCount, setLinkedPostCount] = useState(0);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("itinerary");
   const {
@@ -257,7 +262,11 @@ const TripDetailPage = () => {
               variant="ghost"
               size="icon"
               className="absolute top-4 right-4 bg-black/20 text-white backdrop-blur-sm hover:bg-error-500/80"
-              onClick={() => setIsDeleteDialogOpen(true)}
+              onClick={async () => {
+                const count = await countPostsByTripId(tripId);
+                setLinkedPostCount(count);
+                setIsDeleteDialogOpen(true);
+              }}
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -269,10 +278,21 @@ const TripDetailPage = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Xóa chuyến đi</DialogTitle>
-              <DialogDescription>
-                Bạn có chắc muốn xóa &quot;{trip.name}&quot;? Tất cả lịch trình,
-                chi phí và thành viên sẽ bị xóa vĩnh viễn. Hành động này không
-                thể hoàn tác.
+              <DialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    Bạn có chắc muốn xóa &quot;{trip.name}&quot;? Tất cả lịch
+                    trình, chi phí và thành viên sẽ bị xóa vĩnh viễn. Hành động
+                    này không thể hoàn tác.
+                  </p>
+                  {linkedPostCount > 0 && (
+                    <p className="rounded-md bg-error-500/10 px-3 py-2 text-error-400">
+                      ⚠️ Chuyến đi này có{" "}
+                      <strong>{linkedPostCount} bài viết</strong> đã đăng trong
+                      Community. Các bài viết đó cũng sẽ bị xóa vĩnh viễn.
+                    </p>
+                  )}
+                </div>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -289,6 +309,10 @@ const TripDetailPage = () => {
                 onClick={async () => {
                   setIsDeleting(true);
                   try {
+                    // Delete linked community posts first, then the trip
+                    if (linkedPostCount > 0) {
+                      await deletePostsByTripId(tripId);
+                    }
                     await handleDeleteTrip(tripId);
                     navigate({ to: "/" });
                   } catch {

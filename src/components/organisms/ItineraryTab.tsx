@@ -179,7 +179,7 @@ const ActivityRow = ({
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="shrink-0 text-sm leading-none">
-                {config.icon}
+                {config?.icon ?? "📌"}
               </span>
               <span className="font-semibold text-on-surface text-sm leading-snug">
                 {activity.title}

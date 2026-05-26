@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   startAfter,
   type Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -27,6 +28,7 @@ import type {
   CommunityRegion,
   CreatePostInput,
   LikeDoc,
+  UpdatePostInput,
 } from "@/types/community";
 
 // ─── Collection refs ──────────────────────────────────────────
@@ -36,6 +38,23 @@ const commentsRef = (postId: string) =>
   collection(db, "communityPosts", postId, "comments");
 const likeRef = (postId: string, userId: string) =>
   doc(db, "communityPosts", postId, "likes", userId);
+
+// ─── Firestore safety ─────────────────────────────────────────
+/**
+ * Recursively removes keys whose value is `undefined`.
+ * Firestore rejects documents that contain `undefined` anywhere in their tree.
+ * `null` is preserved; only `undefined` is stripped.
+ */
+function stripUndefined(value: unknown): unknown {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(stripUndefined);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v !== undefined) out[k] = stripUndefined(v);
+  }
+  return out;
+}
 
 // ─── Converters ───────────────────────────────────────────────
 function toPost(snap: DocumentSnapshot): CommunityPost | null {
@@ -55,6 +74,7 @@ function toComment(snap: DocumentSnapshot): Comment {
     ...d,
     id: snap.id,
     createdAt: d.createdAt.toDate(),
+    updatedAt: d.updatedAt ? d.updatedAt.toDate() : null,
   };
 }
 
@@ -163,23 +183,71 @@ export async function createPost(
   // Conditionally include optional fields only when they have a value
   if (input.tripId !== undefined) data.tripId = input.tripId;
   if (input.itinerarySnapshot !== undefined)
-    data.itinerarySnapshot = input.itinerarySnapshot;
+    // stripUndefined: activity.startTime / .location may be undefined (Firestore rejects them)
+    data.itinerarySnapshot = stripUndefined(input.itinerarySnapshot);
   if (input.expenseSnapshot !== undefined)
-    data.expenseSnapshot = input.expenseSnapshot;
+    data.expenseSnapshot = stripUndefined(input.expenseSnapshot);
 
   const ref = await addDoc(postsRef(), data);
   return ref.id;
 }
 
 export async function deletePost(postId: string): Promise<void> {
+  // Delete all comments in the subcollection first
+  const commentSnap = await getDocs(commentsRef(postId));
+  const deletes = commentSnap.docs.map((d) => deleteDoc(d.ref));
+  await Promise.all(deletes);
   await deleteDoc(postRef(postId));
 }
 
-// ─── Likes ────────────────────────────────────────────────────
-export async function toggleLike(
+/** Returns how many community posts are linked to a given trip. */
+export async function countPostsByTripId(tripId: string): Promise<number> {
+  const snap = await getDocs(query(postsRef(), where("tripId", "==", tripId)));
+  return snap.size;
+}
+
+/** Deletes all community posts (and their comments) linked to a trip. */
+export async function deletePostsByTripId(tripId: string): Promise<void> {
+  const snap = await getDocs(query(postsRef(), where("tripId", "==", tripId)));
+  await Promise.all(snap.docs.map((d) => deletePost(d.id)));
+}
+
+export async function updatePost(
   postId: string,
-  userId: string
-): Promise<boolean> {
+  input: UpdatePostInput
+): Promise<void> {
+  const data: Record<string, unknown> = {
+    title: input.title,
+    content: input.content,
+    destination: input.destination,
+    region: input.region,
+    imageUrls: input.imageUrls,
+    includeItinerary: input.includeItinerary,
+    includeExpenses: input.includeExpenses,
+    isEdited: true,
+    updatedAt: serverTimestamp(),
+  };
+  if (input.tripId !== undefined) data.tripId = input.tripId;
+  // Only null-out a snapshot when the user explicitly unchecked it.
+  // If includeX=true but the new snapshot is undefined (rebuild failed due to
+  // missing trip data in edit mode), leave the field untouched so Firestore
+  // preserves the existing value.
+  if (!input.includeItinerary) {
+    data.itinerarySnapshot = null;
+  } else if (input.itinerarySnapshot !== undefined) {
+    data.itinerarySnapshot = stripUndefined(input.itinerarySnapshot);
+  }
+  if (!input.includeExpenses) {
+    data.expenseSnapshot = null;
+  } else if (input.expenseSnapshot !== undefined) {
+    data.expenseSnapshot = stripUndefined(input.expenseSnapshot);
+  }
+
+  await updateDoc(postRef(postId), data);
+}
+
+// ─── Likes ────────────────────────────────────────────────────
+export function toggleLike(postId: string, userId: string): Promise<boolean> {
   const ref = likeRef(postId, userId);
   const pRef = postRef(postId);
 
@@ -233,16 +301,22 @@ export async function addComment(
   authorId: string,
   authorName: string,
   authorPhotoURL: string,
-  content: string
+  content: string,
+  imageUrl?: string | null,
+  gifUrl?: string | null
 ): Promise<void> {
-  const data: CommentDoc = {
+  const data: Record<string, unknown> = {
     postId,
     authorId,
     authorName,
     authorPhotoURL,
     content,
-    createdAt: serverTimestamp() as unknown as Timestamp,
+    isEdited: false,
+    createdAt: serverTimestamp(),
+    updatedAt: null,
   };
+  if (imageUrl != null) data.imageUrl = imageUrl;
+  if (gifUrl != null) data.gifUrl = gifUrl;
   await addDoc(commentsRef(postId), data);
   // increment commentCount
   await runTransaction(db, async (tx) => {
@@ -250,6 +324,22 @@ export async function addComment(
     if (!pSnap.exists()) return;
     const cur = (pSnap.data() as CommunityPostDoc).commentCount ?? 0;
     tx.update(postRef(postId), { commentCount: cur + 1 });
+  });
+}
+
+export async function updateComment(
+  postId: string,
+  commentId: string,
+  content: string,
+  imageUrl?: string | null,
+  gifUrl?: string | null
+): Promise<void> {
+  await updateDoc(doc(commentsRef(postId), commentId), {
+    content,
+    ...(imageUrl !== undefined && { imageUrl: imageUrl ?? null }),
+    ...(gifUrl !== undefined && { gifUrl: gifUrl ?? null }),
+    isEdited: true,
+    updatedAt: serverTimestamp(),
   });
 }
 

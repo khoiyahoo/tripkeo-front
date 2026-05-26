@@ -195,3 +195,100 @@ h2 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-outline);
 }
+
+/* ── MD Editor dark-theme overrides ──────────────────────────────
+   Forces @uiw/react-md-editor to match the app's dark surface colours.
+   These rules target data-color-mode="dark" which is set on the editor wrapper.
+*/
+.w-md-editor {
+  --color-canvas-default: #252836;
+  --color-fg-default: #ffffff;
+  --color-border-default: #3a3d4a;
+  background-color: #252836;
+  border: 1px solid #3a3d4a;
+  border-radius: 0.25rem;
+  color: #ffffff;
+}
+.w-md-editor-toolbar {
+  background-color: #2d303e;
+  border-bottom: 1px solid #3a3d4a;
+}
+.w-md-editor-toolbar li > button {
+  color: #abbbc2;
+}
+.w-md-editor-toolbar li > button:hover {
+  color: #ffffff;
+  background-color: #3b4453;
+}
+.w-md-editor-text-pre,
+.w-md-editor-text-input {
+  color: #ffffff;
+  caret-color: #ffffff;
+}
+.w-md-editor-preview {
+  background-color: #252836;
+  color: #ffffff;
+}
+/* Rendered markdown in PostDetailPage — transparent so it inherits page bg */
+[data-color-mode] .wmde-markdown {
+  background-color: transparent;
+  color: inherit;
+}
+/* Headings */
+[data-color-mode="dark"] .wmde-markdown h1,
+[data-color-mode="dark"] .wmde-markdown h2,
+[data-color-mode="dark"] .wmde-markdown h3,
+[data-color-mode="dark"] .wmde-markdown h4,
+[data-color-mode="dark"] .wmde-markdown h5,
+[data-color-mode="dark"] .wmde-markdown h6 {
+  color: #ffffff;
+  border-bottom-color: #3a3d4a;
+}
+/* Links */
+[data-color-mode="dark"] .wmde-markdown a {
+  color: #7dd3fc;
+}
+/* Inline code */
+[data-color-mode="dark"] .wmde-markdown code {
+  background-color: #1e2130;
+  color: #e2e8f0;
+  border-color: #3a3d4a;
+}
+/* Code blocks */
+[data-color-mode="dark"] .wmde-markdown pre {
+  background-color: #1e2130;
+  border-color: #3a3d4a;
+}
+[data-color-mode="dark"] .wmde-markdown pre code {
+  background-color: transparent;
+  color: #e2e8f0;
+}
+/* Blockquote */
+[data-color-mode="dark"] .wmde-markdown blockquote {
+  border-left-color: #3a3d4a;
+  color: #abbbc2;
+}
+/* Table */
+[data-color-mode="dark"] .wmde-markdown table tr {
+  background-color: transparent;
+  border-color: #3a3d4a;
+}
+[data-color-mode="dark"] .wmde-markdown table tr:nth-child(2n) {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+[data-color-mode="dark"] .wmde-markdown table th,
+[data-color-mode="dark"] .wmde-markdown table td {
+  border-color: #3a3d4a;
+}
+/* Horizontal rule */
+[data-color-mode="dark"] .wmde-markdown hr {
+  background-color: #3a3d4a;
+}
+/* Lists — ensure bullets/numbers are visible */
+[data-color-mode="dark"] .wmde-markdown ul,
+[data-color-mode="dark"] .wmde-markdown ol {
+  padding-left: 1.5em;
+}
+[data-color-mode="dark"] .wmde-markdown li::marker {
+  color: #abbbc2;
+}

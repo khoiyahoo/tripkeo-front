@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -197,4 +198,15 @@ export const subscribeToActivitiesByDate = (
     },
     onError
   );
+};
+
+/** One-time fetch of all activities for a trip (for building post snapshots). */
+export const fetchActivitiesForTrip = async (
+  tripId: string
+): Promise<ActivityWithId[]> => {
+  // Use a single orderBy("date") to avoid requiring a composite Firestore index.
+  // Activities within each date are sorted client-side by the caller (buildItinerarySnapshot).
+  const q = query(activitiesRef(tripId), orderBy("date"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => toActivityWithId(d.id, d.data()));
 };

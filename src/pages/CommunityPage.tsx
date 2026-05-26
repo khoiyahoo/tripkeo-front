@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { useCommunity } from "@/hooks/useCommunity";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { deletePost } from "@/services/communityService";
 import { useAuthStore } from "@/stores/authStore";
 
-import type { CommunityRegion } from "@/types/community";
+import type { CommunityPost, CommunityRegion } from "@/types/community";
 
 const REGION_FILTERS: { value: CommunityRegion | "all"; label: string }[] = [
   { value: "all", label: "Tất cả" },
@@ -26,6 +27,7 @@ export default function CommunityPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { trips } = useTrips();
 
@@ -51,6 +53,17 @@ export default function CommunityPage() {
       return;
     }
     setShowCreateDialog(true);
+  };
+
+  const handleDeletePost = async (post: CommunityPost) => {
+    if (!confirm("Bạn có chắc muốn xóa bài viết này?")) return;
+    try {
+      await deletePost(post.id);
+      toast.success("Đã xóa bài viết");
+      refetch();
+    } catch {
+      toast.error("Không thể xóa bài viết");
+    }
   };
 
   const filteredPosts = searchQuery.trim()
@@ -136,6 +149,9 @@ export default function CommunityPage() {
                 }
                 isAuthenticated={!!user}
                 onRequireAuth={handleRequireAuth}
+                currentUserId={user?.uid}
+                onEdit={(p) => setEditingPost(p)}
+                onDelete={handleDeletePost}
               />
             ))}
           </div>
@@ -161,6 +177,20 @@ export default function CommunityPage() {
           navigate({ to: "/community/$postId", params: { postId } });
         }}
       />
+
+      {/* Edit post dialog */}
+      {editingPost && (
+        <CreatePostDialog
+          open={!!editingPost}
+          onClose={() => setEditingPost(null)}
+          trips={trips}
+          editPost={editingPost}
+          onSuccess={() => {
+            setEditingPost(null);
+            refetch();
+          }}
+        />
+      )}
     </MainLayout>
   );
 }

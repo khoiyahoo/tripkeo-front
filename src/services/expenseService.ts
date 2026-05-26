@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -28,10 +29,29 @@ const expensesRef = (tripId: string) =>
 const toExpenseWithId = (
   id: string,
   data: Record<string, unknown>
-): ExpenseWithId => ({
-  id,
-  ...(data as unknown as ExpenseDoc),
-});
+): ExpenseWithId => {
+  // Normalise legacy paidBy: older documents stored it as { type, userId, displayName }
+  // instead of a plain string name. Extracting displayName prevents React render crashes.
+  const rawPaidBy = data.paidBy;
+  const paidBy =
+    typeof rawPaidBy === "string"
+      ? rawPaidBy
+      : rawPaidBy !== null &&
+          typeof rawPaidBy === "object" &&
+          "displayName" in (rawPaidBy as object)
+        ? String(
+            (rawPaidBy as Record<string, unknown>).displayName ??
+              (rawPaidBy as Record<string, unknown>).userId ??
+              "?"
+          )
+        : "?";
+
+  return {
+    id,
+    ...(data as unknown as ExpenseDoc),
+    paidBy, // override with normalised value
+  };
+};
 
 // ─── Active-member helper ─────────────────────────────────────
 // (Kept for system-member operations; cost members are now plain strings)
@@ -319,3 +339,12 @@ export const getExpenseSummary = (
 
 // getMemberExpenseInfo by UID is no longer needed since expenses are name-based.
 // Use getCostMemberExpenseInfo(expenses, name) instead.
+
+/** One-time fetch of all expenses for a trip (for building post snapshots). */
+export const fetchExpensesForTrip = async (
+  tripId: string
+): Promise<ExpenseWithId[]> => {
+  const q = query(expensesRef(tripId), orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => toExpenseWithId(d.id, d.data()));
+};

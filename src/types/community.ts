@@ -33,6 +33,8 @@ export interface CommunityPostDoc {
   commentCount: number;
   /** Number of times this post was cloned */
   cloneCount: number;
+  /** Whether the post has been edited after creation */
+  isEdited?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -50,12 +52,22 @@ export interface ItineraryDaySnapshot {
   }[];
 }
 
+export interface ExpenseSnapshotItem {
+  description: string;
+  amount: number;
+  category: string;
+}
+
 export interface ExpenseSnapshot {
   total: number;
   currency: string;
   memberCount: number;
   perPerson: number;
   byCategory: Record<string, number>;
+  /** Individual expense items — no payer info (privacy-safe) */
+  items?: ExpenseSnapshotItem[];
+  /** Daily totals sorted ascending by date */
+  byDay?: { date: string; amount: number }[];
 }
 
 // ─── Comment ──────────────────────────────────────────────────
@@ -65,7 +77,11 @@ export interface CommentDoc {
   authorName: string;
   authorPhotoURL: string;
   content: string;
+  imageUrl?: string | null;
+  gifUrl?: string | null;
+  isEdited?: boolean;
   createdAt: Timestamp;
+  updatedAt?: Timestamp | null;
 }
 
 // ─── Like ─────────────────────────────────────────────────────
@@ -83,12 +99,25 @@ export interface CommunityPost
   updatedAt: Date;
 }
 
-export interface Comment extends Omit<CommentDoc, "createdAt"> {
+export interface Comment extends Omit<CommentDoc, "createdAt" | "updatedAt"> {
   id: string;
   createdAt: Date;
+  updatedAt?: Date | null;
 }
 
 // ─── Form inputs ──────────────────────────────────────────────
+export interface UpdatePostInput {
+  title: string;
+  content: string;
+  region: CommunityRegion;
+  imageUrls: string[];
+  tripId?: string;
+  destination: string;
+  includeItinerary: boolean;
+  includeExpenses: boolean;
+  itinerarySnapshot?: ItineraryDaySnapshot[];
+  expenseSnapshot?: ExpenseSnapshot;
+}
 export interface CreatePostInput {
   title: string;
   content: string;

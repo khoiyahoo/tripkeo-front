@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { Sidebar } from "../components/organisms/Sidebar";
 
@@ -10,6 +10,13 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
   const navigate = useNavigate();
+
+  // Each page renders its own MainLayout instance, so this effect fires on every
+  // navigation. It clears any body scroll-lock that Radix UI Dialog may have
+  // left behind if the user navigated away while a dialog was still mounted.
+  useEffect(() => {
+    document.body.style.overflow = "";
+  }, []);
 
   const handleNavigate = (path: string) => {
     navigate({ to: path });

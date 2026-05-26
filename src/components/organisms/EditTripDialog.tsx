@@ -124,6 +124,10 @@ export const EditTripDialog = ({
         endDate: oldEndStr,
       });
       setDateError(null);
+    } else {
+      // Radix can leave body.overflow="hidden" when a nested dialog (warning)
+      // closes at the same time as the outer dialog. Clear it explicitly.
+      document.body.style.overflow = "";
     }
   }, [isOpen, trip, oldStartStr, oldEndStr]);
 

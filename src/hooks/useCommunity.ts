@@ -32,8 +32,6 @@ export function useCommunity(): UseCommunityResult {
   const [hasMore, setHasMore] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [region, setRegion] = useState<CommunityRegion | "all">("all");
-  const [_, setRefreshKey] = useState(0);
-
   const lastDocRef = useRef<DocumentSnapshot | null>(null);
 
   // Subscribe to first page
@@ -51,6 +49,17 @@ export function useCommunity(): UseCommunityResult {
       () => setIsLoading(false)
     );
     return unsub;
+  }, [region]);
+
+  // Manually refresh by fetching the latest page (used after create/edit/delete)
+  const refetch = useCallback(async () => {
+    lastDocRef.current = null;
+    const page = await fetchPosts({
+      region: region === "all" ? undefined : region,
+    });
+    setPosts(page.posts);
+    lastDocRef.current = page.lastDoc;
+    setHasMore(page.hasMore);
   }, [region]);
 
   // Fetch liked status when posts or user changes
@@ -96,8 +105,6 @@ export function useCommunity(): UseCommunityResult {
     },
     [user]
   );
-
-  const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   return {
     posts,

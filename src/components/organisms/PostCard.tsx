@@ -1,8 +1,21 @@
-import { Heart, MessageCircle, Users } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Users,
+} from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 
@@ -35,6 +48,9 @@ interface PostCardProps {
   onView: () => void;
   isAuthenticated: boolean;
   onRequireAuth: () => void;
+  currentUserId?: string;
+  onEdit?: (post: CommunityPost) => void;
+  onDelete?: (post: CommunityPost) => void;
 }
 
 export const PostCard = ({
@@ -44,6 +60,9 @@ export const PostCard = ({
   onView,
   isAuthenticated,
   onRequireAuth,
+  currentUserId,
+  onEdit,
+  onDelete,
 }: PostCardProps) => {
   const handleLike = () => {
     if (!isAuthenticated) {
@@ -54,13 +73,12 @@ export const PostCard = ({
   };
 
   return (
-    <div
+    <article
       className="cursor-pointer overflow-hidden rounded-2xl bg-surface-card ring-1 ring-black/5 transition hover:ring-primary-500/30"
       onClick={onView}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onView();
       }}
-      role="article"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3 p-4 pb-2">
@@ -77,12 +95,52 @@ export const PostCard = ({
             </p>
             <p className="text-on-surface-variant/60 text-xs">
               {timeAgo(post.createdAt)}
+              {post.isEdited && (
+                <span className="ml-1 text-on-surface-variant/40">
+                  (đã sửa)
+                </span>
+              )}
             </p>
           </div>
         </div>
-        <Badge variant="outline" className="shrink-0 text-xs">
-          {REGION_LABELS[post.region] ?? post.region}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="shrink-0 text-xs">
+            {REGION_LABELS[post.region] ?? post.region}
+          </Badge>
+          {currentUserId === post.authorId && (onEdit || onDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:bg-secondary-800/50"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onEdit && (
+                  <DropdownMenuItem onClick={() => onEdit(post)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Chỉnh sửa
+                  </DropdownMenuItem>
+                )}
+                {onDelete && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(post)}
+                    className="text-error-400 focus:text-error-400"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Xóa bài viết
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       {/* Title + content */}
@@ -172,6 +230,6 @@ export const PostCard = ({
           Xem chi tiết →
         </Button>
       </div>
-    </div>
+    </article>
   );
 };
