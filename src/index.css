@@ -204,13 +204,15 @@ h2 {
   --color-canvas-default: #252836;
   --color-fg-default: #ffffff;
   --color-border-default: #3a3d4a;
-  background-color: #252836;
+  /* biome-ignore lint/complexity/noImportantStyles: <explanation> */
+  background-color: #252836 !important;
   border: 1px solid #3a3d4a;
   border-radius: 0.25rem;
   color: #ffffff;
 }
 .w-md-editor-toolbar {
-  background-color: #2d303e;
+  /* biome-ignore lint/complexity/noImportantStyles: <explanation> */
+  background-color: #252836 !important;
   border-bottom: 1px solid #3a3d4a;
 }
 .w-md-editor-toolbar li > button {

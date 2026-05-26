@@ -451,9 +451,7 @@ export const CreatePostDialog = ({
 
           {/* Content — Markdown Editor */}
           <div>
-            <Label className="text-xs">
-              Nội dung bài viết * (hỗ trợ Markdown)
-            </Label>
+            <Label className="text-xs">Nội dung bài viết *</Label>
             <div className="mt-1 overflow-hidden rounded-sm border border-input">
               <MDEditor
                 value={content}
@@ -463,8 +461,7 @@ export const CreatePostDialog = ({
                 hideToolbar={false}
                 visibleDragbar={false}
                 textareaProps={{
-                  placeholder:
-                    "Viết cảm nhận về chuyến đi...\nHỗ trợ **bold**, *italic*, # heading, - list,...",
+                  placeholder: "Viết cảm nhận về chuyến đi...",
                 }}
               />
             </div>
