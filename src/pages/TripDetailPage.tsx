@@ -386,15 +386,12 @@ const TripDetailPage = () => {
             </TabsContent>
             <TabsContent value="expenses">
               <ExpensesTab
-                meta={tripMeta}
                 expenses={expenses}
                 summary={summary}
                 members={trip.members}
                 costMembers={trip.costMembers ?? []}
                 isLoading={isExpensesLoading}
                 currentUserRole={currentUserRole}
-                balances={balances}
-                debts={debts}
                 onAddExpense={handleAddExpense}
                 onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
@@ -402,9 +399,11 @@ const TripDetailPage = () => {
             </TabsContent>
             <TabsContent value="balance">
               <BalanceTab
+                meta={tripMeta}
                 summary={summary}
                 balances={balances}
                 debts={debts}
+                expenses={expenses}
                 tripId={tripId}
                 currentUserRole={currentUserRole}
               />

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { DebtPaymentButton } from "@/components/atoms/DebtPaymentButton";
 import { DebtPaymentModal } from "@/components/molecules/DebtPaymentModal";
+import { ExpensesPdfExport } from "@/components/organisms/ExpensesPdfExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDebtPayments } from "@/hooks/useDebtPayments";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -15,22 +16,33 @@ import { formatCompactCurrency } from "@/utils/formatCompactCurrency";
 
 import type {
   DebtSettlement,
+  ExpenseWithId,
   MemberBalance,
   TripRole,
 } from "@/types/firestore";
 
 interface BalanceTabProps {
+  meta: {
+    title: string;
+    destination?: string;
+    startDate?: string;
+    endDate?: string;
+    memberCount: number;
+  };
   summary: ExpenseSummary;
   balances: MemberBalance[];
   debts: DebtSettlement[];
+  expenses: ExpenseWithId[];
   tripId: string;
   currentUserRole?: TripRole;
 }
 
 export const BalanceTab = ({
+  meta,
   summary,
   balances,
   debts,
+  expenses,
   tripId,
   currentUserRole,
 }: BalanceTabProps) => {
@@ -127,6 +139,15 @@ export const BalanceTab = ({
     });
   }, [filteredBalances, settledDebts, settlementStatuses]);
 
+  // Filter unpaid debts for PDF display
+  const unpaidDebts = useMemo(() => {
+    return settledDebts.filter((debt) => {
+      const key = `${debt.fromName}-${debt.toName}`;
+      const status = settlementStatuses.get(key);
+      return !status?.isPaid;
+    });
+  }, [settledDebts, settlementStatuses]);
+
   const handleToggleSubmit = async () => {
     try {
       if (!selectedDebt) return;
@@ -179,6 +200,17 @@ export const BalanceTab = ({
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* PDF Export */}
+      <div className="flex justify-end">
+        <ExpensesPdfExport
+          meta={meta}
+          expenses={expenses}
+          summary={summary}
+          balances={adjustedBalances}
+          debts={unpaidDebts}
+        />
       </div>
 
       {/* Per-member balances */}

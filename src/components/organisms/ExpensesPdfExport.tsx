@@ -116,7 +116,7 @@ export const ExpensesPdfExport = ({
       </div>
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="flex h-[92vh] max-w-5xl flex-col gap-0 p-0">
+        <DialogContent className="flex h-[92vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <div className="flex items-center justify-between pr-6">
               <DialogTitle className="text-base">
@@ -137,7 +137,15 @@ export const ExpensesPdfExport = ({
               </Button>
             </div>
           </DialogHeader>
-          <div className="min-h-0 flex-1">
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              minHeight: 0,
+              overflow: "hidden",
+              width: "100%",
+            }}
+          >
             {isPreviewOpen && (
               <PDFViewer width="100%" height="100%" showToolbar>
                 <ExpensePdfDocument

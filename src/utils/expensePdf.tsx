@@ -396,9 +396,9 @@ export const ExpensePdfDocument = ({
                   Số tiền
                 </Text>
               </View>
-              {debts.map((d: DebtSettlement, i: number) => (
+              {debts.map((d: DebtSettlement) => (
                 <View
-                  key={`${d.fromName}-${d.toName}-${i}`}
+                  key={`${d.fromName}-${d.toName}`}
                   style={styles.balanceRow}
                 >
                   <Text style={{ fontSize: 8.5, flex: 2, color: C.red }}>

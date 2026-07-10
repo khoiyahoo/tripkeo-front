@@ -9,12 +9,9 @@ import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 
 import { AddExpenseForm } from "./AddExpenseForm";
-import { ExpensesPdfExport } from "./ExpensesPdfExport";
 import type {
   CreateExpenseInput,
-  DebtSettlement,
   ExpenseWithId,
-  MemberBalance,
   TripMemberInfo,
   TripRole,
 } from "@/types/firestore";
@@ -28,13 +25,6 @@ const SPLIT_METHOD_LABELS: Record<string, string> = {
 
 // ─── Props ────────────────────────────────────────────────────
 interface ExpensesTabProps {
-  meta: {
-    title: string;
-    destination?: string;
-    startDate?: string;
-    endDate?: string;
-    memberCount: number;
-  };
   expenses: ExpenseWithId[];
   summary: ExpenseSummary;
   /** System members map (for role checks) */
@@ -43,8 +33,6 @@ interface ExpensesTabProps {
   costMembers: string[];
   isLoading: boolean;
   currentUserRole?: TripRole;
-  balances?: MemberBalance[];
-  debts?: DebtSettlement[];
   onAddExpense: (input: CreateExpenseInput) => Promise<string>;
   onUpdateExpense: (
     expenseId: string,
@@ -104,15 +92,12 @@ const CategorySummary = ({ expenses }: { expenses: ExpenseWithId[] }) => {
 // ─── Main Component ───────────────────────────────────────────
 
 export const ExpensesTab = ({
-  meta,
   expenses,
   summary,
   members,
   costMembers,
   isLoading,
   currentUserRole,
-  balances = [],
-  debts = [],
   onAddExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -196,17 +181,6 @@ export const ExpensesTab = ({
             </p>
           </CardContent>
         </Card>
-      </div>
-
-      {/* PDF Export */}
-      <div className="flex justify-end">
-        <ExpensesPdfExport
-          meta={meta}
-          expenses={expenses}
-          summary={summary}
-          balances={balances}
-          debts={debts}
-        />
       </div>
 
       {/* Category breakdown */}
