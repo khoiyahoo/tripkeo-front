@@ -233,4 +233,7 @@ export interface DebtSettlement {
   fromName: string;
   toName: string;
   amount: number;
+  isPaid?: boolean; // true = marked as paid, false/undefined = not paid
+  paidAt?: Date | null; // timestamp when marked as paid
+  createdBy?: string; // UID of who marked it as paid
 }

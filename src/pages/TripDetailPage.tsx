@@ -401,7 +401,12 @@ const TripDetailPage = () => {
               />
             </TabsContent>
             <TabsContent value="balance">
-              <BalanceTab summary={summary} balances={balances} debts={debts} />
+              <BalanceTab
+                summary={summary}
+                balances={balances}
+                debts={debts}
+                tripId={tripId}
+              />
             </TabsContent>
             <TabsContent value="members">
               <MembersTab

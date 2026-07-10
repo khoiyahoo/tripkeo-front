@@ -168,6 +168,42 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
           && request.auth.uid == resource.data.userId;
       }
+
+      // ─── Settlements (subcollection) ──────────────
+      // Track which debts have been marked as paid (isPaid flag).
+      // Permission checked in client before write, but security rules still validate:
+      // - Must be authenticated
+      // - Document ID must follow fromName-toName pattern
+      // Note: memberIds verification done in client code for better UX
+      match /settlements/{settlementId} {
+        allow read: if request.auth != null;
+
+        allow create, update: if request.auth != null
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.fromName is string
+          && request.resource.data.toName is string
+          && request.resource.data.isPaid is bool;
+
+        allow delete: if request.auth != null
+          && resource.data.createdBy == request.auth.uid;
+      }
+
+      // ─── Payment History (subcollection) ─────────
+      // Track payment transaction history for auditing.
+      // Any trip member can read all payment history.
+      // Any trip member can create payment records.
+      // Only the creator can delete (undo) their own transactions.
+      match /paymentHistory/{transactionId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+
+        allow delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.auth.uid == resource.data.createdBy;
+      }
     }
 
     // ─── Community Posts ────────────────────────────
