@@ -6,19 +6,25 @@ import { DebtPaymentButton } from "@/components/atoms/DebtPaymentButton";
 import { DebtPaymentModal } from "@/components/molecules/DebtPaymentModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDebtPayments } from "@/hooks/useDebtPayments";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { calculateSettledDebts } from "@/services/debtService";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency } from "@/utils/format";
 import { formatCompactCurrency } from "@/utils/formatCompactCurrency";
 
-import type { DebtSettlement, MemberBalance } from "@/types/firestore";
+import type {
+  DebtSettlement,
+  MemberBalance,
+  TripRole,
+} from "@/types/firestore";
 
 interface BalanceTabProps {
   summary: ExpenseSummary;
   balances: MemberBalance[];
   debts: DebtSettlement[];
   tripId: string;
+  currentUserRole?: TripRole;
 }
 
 export const BalanceTab = ({
@@ -26,7 +32,11 @@ export const BalanceTab = ({
   balances,
   debts,
   tripId,
+  currentUserRole,
 }: BalanceTabProps) => {
+  const { isOwner, isTreasurer } = usePermissions(currentUserRole);
+  const canTogglePayment = isOwner || isTreasurer;
+
   const {
     paymentHistory,
     isPaymentModalOpen,
@@ -258,14 +268,21 @@ export const BalanceTab = ({
                   {formatCurrency(d.amount)}
                 </span>
                 <DebtPaymentButton
-                  onClick={() =>
-                    handleOpenPaymentModal(d.fromName, d.toName, d.amount)
-                  }
+                  onClick={() => {
+                    if (!canTogglePayment) {
+                      toast.error(
+                        "Chỉ chủ sở hữu hoặc thủ quỹ mới có quyền cập nhật trạng thái thanh toán"
+                      );
+                      return;
+                    }
+                    handleOpenPaymentModal(d.fromName, d.toName, d.amount);
+                  }}
                   isPaid={
                     settlementStatuses.get(`${d.fromName}-${d.toName}`)
                       ?.isPaid || false
                   }
                   isLoading={isTogglingSettlement}
+                  hasPermission={canTogglePayment}
                 />
               </div>
             ))}

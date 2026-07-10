@@ -8,6 +8,7 @@ interface DebtPaymentButtonProps {
   disabled?: boolean;
   isLoading?: boolean;
   isPaid?: boolean; // true = marked as paid, false = not paid
+  hasPermission?: boolean; // Whether user has permission to toggle (owner or treasurer)
 }
 
 /**
@@ -19,36 +20,41 @@ export const DebtPaymentButton = ({
   disabled = false,
   isLoading = false,
   isPaid = false,
+  hasPermission = true,
 }: DebtPaymentButtonProps) => {
+  const baseClasses = ["font-medium", "gap-1.5", "text-xs"];
+
+  const paidClasses = ["bg-error-600", "text-white", "hover:bg-error-700"];
+
+  const unpaidClasses = [
+    "border-success-200",
+    "text-success-600",
+    "hover:bg-success-50",
+    "hover:border-success-300",
+    "hover:text-success-700",
+  ];
+
+  const disabledClasses = !hasPermission
+    ? ["cursor-not-allowed", "opacity-50"]
+    : [];
+
   return (
     <Button
       variant={isPaid ? "default" : "outline"}
       size="sm"
       onClick={onClick}
-      disabled={disabled || isLoading}
+      disabled={disabled || isLoading || !hasPermission}
       className={cn(
-        isPaid
-          ? [
-              "bg-error-600",
-              "font-medium",
-              "gap-1.5",
-              "text-xs",
-              "text-white",
-              "hover:bg-error-700",
-            ]
-          : [
-              "border-success-200",
-              "font-medium",
-              "gap-1.5",
-              "text-xs",
-              "text-success-600",
-              "hover:bg-success-50",
-              "hover:border-success-300",
-              "hover:text-success-700",
-            ]
+        baseClasses,
+        isPaid ? paidClasses : unpaidClasses,
+        disabledClasses
       )}
       title={
-        isPaid ? "Xác nhận hoàn tác thanh toán" : "Xác nhận đã trả khoản nợ này"
+        !hasPermission
+          ? "Chỉ chủ sở hữu hoặc thủ quỹ mới có quyền cập nhật trạng thái thanh toán"
+          : isPaid
+            ? "Xác nhận hoàn tác thanh toán"
+            : "Xác nhận đã trả khoản nợ này"
       }
     >
       {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

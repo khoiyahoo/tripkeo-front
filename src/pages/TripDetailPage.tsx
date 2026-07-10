@@ -406,6 +406,7 @@ const TripDetailPage = () => {
                 balances={balances}
                 debts={debts}
                 tripId={tripId}
+                currentUserRole={currentUserRole}
               />
             </TabsContent>
             <TabsContent value="members">
