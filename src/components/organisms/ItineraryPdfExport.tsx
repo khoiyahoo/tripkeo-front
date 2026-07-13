@@ -4,18 +4,16 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import type { TripMeta } from "@/utils/itineraryPdf";
 import { ItineraryPdfDocument } from "@/utils/itineraryPdf";
 
-import type { ActivityWithId, PersonalActivityWithId } from "@/types/firestore";
+import type { ActivityWithId } from "@/types/firestore";
 
 // Re-export so TripDetailPage only imports from this file
 export type { TripMeta };
@@ -25,8 +23,6 @@ interface ItineraryPdfExportProps {
   tripMeta: TripMeta;
   days: { dayNumber: number; date: string }[];
   activitiesByDate: Record<string, ActivityWithId[]>;
-  /** Optional personal activities; when provided, shows checkbox to include. */
-  personalActivitiesByDate?: Record<string, PersonalActivityWithId[]>;
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -34,17 +30,11 @@ export const ItineraryPdfExport = ({
   tripMeta,
   days,
   activitiesByDate,
-  personalActivitiesByDate,
 }: ItineraryPdfExportProps) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [includePersonal, setIncludePersonal] = useState(true);
 
   const fileName = `${tripMeta.title.replace(/\s+/g, "_")}_lich_trinh.pdf`;
-
-  const hasPersonal =
-    personalActivitiesByDate !== undefined &&
-    Object.values(personalActivitiesByDate).some((a) => a.length > 0);
 
   const totalActivities = Object.values(activitiesByDate).reduce(
     (sum, acts) => sum + acts.length,
@@ -71,17 +61,11 @@ export const ItineraryPdfExport = ({
     return false;
   };
 
-  const allShared = Object.values(activitiesByDate).flat();
-
   const buildDoc = () => (
     <ItineraryPdfDocument
       tripMeta={tripMeta}
       days={days}
       activitiesByDate={activitiesByDate}
-      personalActivitiesByDate={
-        includePersonal && hasPersonal ? personalActivitiesByDate : undefined
-      }
-      allSharedActivities={allShared}
     />
   );
 
@@ -145,24 +129,7 @@ export const ItineraryPdfExport = ({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Personal itinerary checkbox */}
-        {hasPersonal && (
-          <div className="flex items-center gap-1.5">
-            <Checkbox
-              id="include-personal-pdf"
-              checked={includePersonal}
-              onCheckedChange={(v) => setIncludePersonal(!!v)}
-            />
-            <Label
-              htmlFor="include-personal-pdf"
-              className="cursor-pointer text-xs"
-            >
-              Bao gồm lịch trình cá nhân
-            </Label>
-          </div>
-        )}
-
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         <Button
           variant="outline"
           size="sm"
@@ -170,7 +137,7 @@ export const ItineraryPdfExport = ({
             if (guardEmpty()) return;
             setIsPreviewOpen(true);
           }}
-          className="gap-1.5"
+          className="min-h-11 gap-1.5"
         >
           <Eye className="h-3.5 w-3.5" />
           Xem PDF
@@ -181,7 +148,7 @@ export const ItineraryPdfExport = ({
           size="sm"
           onClick={handleDownload}
           disabled={isGenerating}
-          className="gap-1.5"
+          className="min-h-11 gap-1.5"
         >
           {isGenerating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -196,7 +163,7 @@ export const ItineraryPdfExport = ({
           size="sm"
           onClick={handleShare}
           disabled={isGenerating}
-          className="gap-1.5"
+          className="min-h-11 gap-1.5"
         >
           {isGenerating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

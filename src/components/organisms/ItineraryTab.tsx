@@ -1,10 +1,17 @@
-import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+import type {
+  CollisionDetection,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
 import {
   closestCenter,
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  pointerWithin,
+  TouchSensor,
   useDroppable,
   useSensor,
   useSensors,
@@ -16,30 +23,28 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { LucideIcon } from "lucide-react";
 import {
+  ArrowDown,
+  ArrowUp,
+  AlertTriangle,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
+  Clock3,
   ExternalLink,
   Eye,
+  GripVertical,
   Loader2,
-  Map as MapIcon,
   MapPin,
-  Moon,
   Pencil,
   Plus,
   RotateCcw,
-  Sun,
-  Sunrise,
   Trash2,
-  Users,
-  XCircle,
+  X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { MapTab } from "@/components/organisms/MapTab";
-import { PersonalItineraryBlock } from "@/components/organisms/PersonalItineraryBlock";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +54,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -59,60 +70,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ACTIVITY_TYPE_CONFIG,
-  getTimePeriod,
-  TIME_PERIOD_CONFIG,
-  TIME_PERIODS,
-} from "@/constants/trip";
+import { ACTIVITY_TYPE_CONFIG } from "@/constants/trip";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/utils/format";
+import type { TimelinePeriod } from "@/utils/itineraryTimeline";
 import {
-  addMinutesToTime,
-  formatCurrency,
-  formatDate,
-  getDefaultStartTime,
-  getSessionBase,
-  getSessionRange,
-} from "@/utils/format";
+  buildTimelineMoveUpdates,
+  findActivitiesAtTime,
+  getRelativeActivityTime,
+  getSuggestedNewActivityTime,
+  getTimelinePeriod,
+  sortTimelineActivities,
+} from "@/utils/itineraryTimeline";
 
 import type {
   ActivityWithId,
   CreateActivityInput,
   TripRole,
 } from "@/types/firestore";
-import type { ActivityType, TimePeriod } from "@/types/trip";
-
-// ─── Period UI Config (Lucide icons) ─────────────────────────
-
-const PERIOD_UI: Record<
-  TimePeriod,
-  { Icon: LucideIcon; iconColor: string; iconBg: string }
-> = {
-  morning: {
-    Icon: Sunrise,
-    iconColor: "text-warning-500",
-    iconBg: "bg-warning-50",
-  },
-  afternoon: {
-    Icon: Sun,
-    iconColor: "text-primary-500",
-    iconBg: "bg-primary-50",
-  },
-  evening: {
-    Icon: Moon,
-    iconColor: "text-secondary-700",
-    iconBg: "bg-secondary-100",
-  },
-};
-
-const PERIOD_TIME_LABEL: Record<TimePeriod, string> = {
-  morning: "06:00 – 11:59",
-  afternoon: "12:00 – 17:59",
-  evening: "18:00 – 23:59",
-};
-
-// ─── Category Options ────────────────────────────────────────
+import type { ActivityType } from "@/types/trip";
 
 const CATEGORY_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: "transport", label: "Di chuyển" },
@@ -124,361 +101,263 @@ const CATEGORY_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: "other", label: "Khác" },
 ];
 
-// ─── Activity Row (pure display) ─────────────────────────────
-
-const ActivityRow = ({
-  activity,
-  onEdit,
-  onDelete,
-  canEdit,
-  isDragging,
-}: {
-  activity: ActivityWithId;
-  onEdit: () => void;
-  onDelete: (id: string) => void;
-  canEdit: boolean;
-  isDragging?: boolean;
-}) => {
-  const config = ACTIVITY_TYPE_CONFIG[activity.category];
-  return (
-    <div
-      className={cn(
-        "rounded-xl bg-secondary-800/60 p-3 transition-shadow",
-        isDragging && "rotate-[0.5deg] shadow-xl ring-2 ring-primary-300"
-      )}
-    >
-      <div className="flex items-start gap-2">
-        {/* Time column */}
-        <div className="flex w-12 shrink-0 flex-col items-end pt-0.5">
-          {activity.startTime ? (
-            <>
-              <span className="font-mono font-semibold text-tertiary-500 text-xs leading-tight">
-                {activity.startTime}
-              </span>
-              {activity.endTime && (
-                <span className="font-mono text-[10px] text-on-surface-variant/50 leading-tight">
-                  {activity.endTime}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="font-mono text-on-surface-variant/30 text-xs">
-              –:–
-            </span>
-          )}
-        </div>
-
-        {/* Vertical connector */}
-        <div className="flex shrink-0 flex-col items-center self-stretch pt-1">
-          <div className="h-2 w-2 shrink-0 rounded-full bg-tertiary-500" />
-          <div className="my-1 w-px flex-1 bg-secondary-600" />
-        </div>
-
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 text-sm leading-none">
-                {config?.icon ?? "📌"}
-              </span>
-              <span className="font-semibold text-on-surface text-sm leading-snug">
-                {activity.title}
-              </span>
-            </div>
-            {canEdit && (
-              <div className="flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit();
-                  }}
-                  className="rounded-md p-1 text-on-surface-variant transition-colors hover:bg-secondary-700 hover:text-on-surface"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(activity.id);
-                  }}
-                  className="rounded-md p-1 text-error-400 transition-colors hover:bg-error-900/20 hover:text-error-300"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {(activity.location || activity.mapsUrl) && (
-            <div className="mt-1.5 flex items-center gap-1 text-on-surface-variant text-xs">
-              <MapPin className="h-3 w-3 shrink-0 text-tertiary-500/70" />
-              {activity.location && (
-                <span className="truncate">{activity.location}</span>
-              )}
-              {activity.mapsUrl && (
-                <a
-                  href={activity.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-1 shrink-0 text-secondary-400 hover:text-secondary-300"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-          )}
-
-          {activity.note && (
-            <p className="mt-1 text-on-surface-variant/60 text-xs">
-              *NOTE: {activity.note}
-            </p>
-          )}
-
-          {activity.cost !== undefined && activity.cost > 0 && (
-            <span className="mt-1.5 inline-block rounded-md bg-tertiary-900/30 px-1.5 py-0.5 font-semibold text-tertiary-500 text-xs">
-              {formatCurrency(activity.cost)}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+const PERIOD_LABELS: Record<TimelinePeriod | "unscheduled", string> = {
+  lateNight: "Khuya · 00:00–02:59",
+  morning: "Sáng · 03:00–11:59",
+  afternoon: "Chiều · 12:00–17:59",
+  evening: "Tối · 18:00–23:59",
+  unscheduled: "Chưa xếp giờ",
 };
 
-// ─── Sortable Activity Row (entire card draggable) ───────────
+const getActivityPeriod = (
+  activity: ActivityWithId
+): TimelinePeriod | "unscheduled" =>
+  activity.startTime ? getTimelinePeriod(activity.startTime) : "unscheduled";
 
-const SortableActivityRow = ({
-  activity,
-  onEdit,
-  onDelete,
-  canEdit,
-}: {
-  activity: ActivityWithId;
-  onEdit: () => void;
-  onDelete: (id: string) => void;
-  canEdit: boolean;
-}) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: activity.id, disabled: !canEdit });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.3 : 1,
-      }}
-      className="cursor-grab active:cursor-grabbing"
-      {...attributes}
-      {...listeners}
-    >
-      <ActivityRow
-        activity={activity}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        canEdit={canEdit}
-      />
-    </div>
+const formatWeekday = (date: string) =>
+  new Intl.DateTimeFormat("vi-VN", { weekday: "short" }).format(
+    new Date(`${date}T00:00:00`)
   );
-};
 
-// ─── Activity Form (unified Add + Edit) ──────────────────────
-
-interface ActivityFormValues {
+interface EditorValues {
   title: string;
   startTime: string;
   endTime: string;
   category: ActivityType;
   location: string;
   note: string;
-  period: TimePeriod;
 }
 
-const INITIAL_FORM: ActivityFormValues = {
+type AddPlacement =
+  | { kind: "end" }
+  | {
+      kind: "relative";
+      activityId: string;
+      position: "before" | "after";
+      startTime: string;
+      order: number;
+    };
+
+const EMPTY_EDITOR_VALUES: EditorValues = {
   title: "",
-  startTime: "",
+  startTime: "09:00",
   endTime: "",
   category: "sights",
   location: "",
   note: "",
-  period: "morning",
 };
 
-const ActivityForm = ({
-  open,
+const timelineCollisionDetection: CollisionDetection = (args) => {
+  const directHits = pointerWithin(args);
+  return directHits.length > 0 ? directHits : closestCenter(args);
+};
+
+const NumericTimeInput = ({
+  id,
+  label,
+  value,
+  onChange,
+  hasWarning = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hasWarning?: boolean;
+}) => {
+  const [initialHour = "", initialMinute = ""] = value.split(":");
+  const [hour, setHour] = useState(initialHour);
+  const [minute, setMinute] = useState(initialMinute);
+  const lastEmittedValue = useRef(value);
+
+  useEffect(() => {
+    if (value === lastEmittedValue.current) return;
+    const [nextHour = "", nextMinute = ""] = value.split(":");
+    setHour(nextHour);
+    setMinute(nextMinute);
+    lastEmittedValue.current = value;
+  }, [value]);
+
+  const normalizePart = (raw: string, max: number) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 2);
+    if (!digits) return "";
+    return String(Math.min(Number(digits), max));
+  };
+
+  const emitTime = (nextHour: string, nextMinute: string) => {
+    if (!nextHour && !nextMinute) {
+      lastEmittedValue.current = "";
+      onChange("");
+      return;
+    }
+    const safeHour = nextHour || "0";
+    const safeMinute = nextMinute || "0";
+    const nextValue = `${safeHour.padStart(2, "0")}:${safeMinute.padStart(2, "0")}`;
+    lastEmittedValue.current = nextValue;
+    onChange(nextValue);
+  };
+
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <div className="mt-1 flex items-center gap-1">
+        <Input
+          id={`${id}-hour`}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={hour}
+          placeholder="00"
+          onChange={(event) => {
+            const nextHour = normalizePart(event.target.value, 23);
+            setHour(nextHour);
+            if (nextHour && !minute) setMinute("00");
+            emitTime(nextHour, minute || (nextHour ? "00" : ""));
+          }}
+          onBlur={() => setHour((current) => current.padStart(2, "0"))}
+          className={cn(
+            "h-11 w-14 px-1 text-center font-mono",
+            hasWarning &&
+              "border-warning-500 bg-warning-50 ring-1 ring-warning-400"
+          )}
+          aria-invalid={hasWarning || undefined}
+          aria-label={`${label} - giờ`}
+        />
+        <span className="font-semibold text-on-surface-variant">:</span>
+        <Input
+          id={`${id}-minute`}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={minute}
+          placeholder="00"
+          onChange={(event) => {
+            const nextMinute = normalizePart(event.target.value, 59);
+            setMinute(nextMinute);
+            if (nextMinute && !hour) setHour("00");
+            emitTime(hour || (nextMinute ? "00" : ""), nextMinute);
+          }}
+          onBlur={() => setMinute((current) => current.padStart(2, "0"))}
+          className={cn(
+            "h-11 w-14 px-1 text-center font-mono",
+            hasWarning &&
+              "border-warning-500 bg-warning-50 ring-1 ring-warning-400"
+          )}
+          aria-invalid={hasWarning || undefined}
+          aria-label={`${label} - phút`}
+        />
+        {value && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 shrink-0"
+            onClick={() => {
+              setHour("");
+              setMinute("");
+              lastEmittedValue.current = "";
+              onChange("");
+            }}
+            aria-label={`Xóa ${label.toLowerCase()}`}
+            title={`Xóa ${label.toLowerCase()}`}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const InlineActivityEditor = ({
   mode,
   tripId,
   date,
   order,
-  initialPeriod,
   initialValues,
   existingActivities,
-  editingId,
+  draftId,
   onSubmit,
   onCancel,
-  onSuccess,
 }: {
-  open: boolean;
   mode: "add" | "edit";
   tripId: string;
   date: string;
   order: number;
-  initialPeriod: TimePeriod;
-  initialValues?: ActivityFormValues;
-  /** Activities in the same date used for time-conflict detection */
-  existingActivities?: ActivityWithId[];
-  /** Id of the activity being edited — excluded from conflict check */
-  editingId?: string;
+  initialValues: EditorValues;
+  existingActivities: ActivityWithId[];
+  /** Identifies the exact add slot so drafts from neighbouring slots never collide. */
+  draftId?: string;
   onSubmit: (input: CreateActivityInput) => Promise<unknown>;
   onCancel: () => void;
-  onSuccess: () => void;
 }) => {
-  const draftKey = `draft_activity_${tripId}_${date}`;
+  const draftKey = `draft_activity_${tripId}_${date}_${draftId ?? "new"}`;
   const { savedDraft, saveDraft, clearDraft, hasDraft } =
-    useFormDraft<ActivityFormValues>(draftKey, INITIAL_FORM);
-
-  const defaults = initialValues ?? INITIAL_FORM;
-  const [title, setTitle] = useState(defaults.title);
-  const activitiesInPeriod = (existingActivities ?? []).filter(
-    (a) => a.startTime && getTimePeriod(a.startTime) === initialPeriod
+    useFormDraft<EditorValues>(draftKey, initialValues);
+  const [values, setValues] = useState(initialValues);
+  const [showDetails, setShowDetails] = useState(
+    mode === "edit" ||
+      Boolean(
+        initialValues.endTime || initialValues.location || initialValues.note
+      )
   );
-  const computedDefault =
-    getDefaultStartTime(activitiesInPeriod, initialPeriod) ??
-    TIME_PERIOD_CONFIG[initialPeriod].defaultTime;
-  const [startTime, setStartTime] = useState(
-    defaults.startTime || computedDefault
-  );
-  const [endTime, setEndTime] = useState(defaults.endTime);
-  const [category, setCategory] = useState<ActivityType>(defaults.category);
-  const [location, setLocation] = useState(defaults.location);
-  const [note, setNote] = useState(defaults.note);
-  const [period, setPeriod] = useState<TimePeriod>(defaults.period);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showDraftBanner, setShowDraftBanner] = useState(
-    mode === "add" && hasDraft
-  );
+  const [showDraft, setShowDraft] = useState(mode === "add" && hasDraft);
   const [titleError, setTitleError] = useState<string | null>(null);
-  const [endTimeError, setEndTimeError] = useState<string | null>(null);
-  const [startTimeRangeError, setStartTimeRangeError] = useState<string | null>(
-    null
-  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const skipInitialDraftSave = useRef(mode === "add" && hasDraft);
 
-  // Auto-save draft (add mode only)
   useEffect(() => {
     if (mode !== "add") return;
-    saveDraft({
-      title,
-      startTime,
-      endTime,
-      category,
-      location,
-      note,
-      period,
-    });
-  }, [
-    mode,
-    title,
-    startTime,
-    endTime,
-    category,
-    location,
-    note,
-    period,
-    saveDraft,
-  ]);
+    // Keep a previous draft intact until the user explicitly restores or discards it.
+    if (skipInitialDraftSave.current) {
+      skipInitialDraftSave.current = false;
+      return;
+    }
+    saveDraft(values);
+  }, [mode, saveDraft, values]);
 
-  const handlePeriodChange = (newPeriod: TimePeriod) => {
-    setPeriod(newPeriod);
-    if (!startTime) {
-      const periodActs = (existingActivities ?? []).filter(
-        (a) => a.startTime && getTimePeriod(a.startTime) === newPeriod
-      );
-      setStartTime(
-        getDefaultStartTime(periodActs, newPeriod) ??
-          TIME_PERIOD_CONFIG[newPeriod].defaultTime
-      );
-    }
-  };
+  const updateValue = <K extends keyof EditorValues>(
+    key: K,
+    value: EditorValues[K]
+  ) => setValues((current) => ({ ...current, [key]: value }));
 
-  const handleStartTimeChange = (newTime: string) => {
-    setStartTime(newTime);
-    if (newTime) {
-      const newPeriod = getTimePeriod(newTime);
-      setPeriod(newPeriod);
-      const range = getSessionRange(newPeriod);
-      if (newTime < range.min || newTime > range.max) {
-        setStartTimeRangeError(
-          `Giờ phải từ ${range.min} đến ${range.max} cho buổi ${TIME_PERIOD_CONFIG[newPeriod].label}.`
-        );
-      } else {
-        setStartTimeRangeError(null);
-      }
-    } else {
-      setStartTimeRangeError(null);
-    }
-    if (endTime && newTime && endTime <= newTime) {
-      setEndTimeError("Phải sau giờ bắt đầu");
-    } else {
-      setEndTimeError(null);
-    }
-  };
+  const timeConflicts = findActivitiesAtTime(
+    existingActivities,
+    values.startTime
+  );
 
-  // Bug 5: detect time conflict within the same day — block submission
-  const timeConflict = useMemo(() => {
-    if (!startTime || !existingActivities?.length) return null;
-    const p = getTimePeriod(startTime);
-    return (
-      existingActivities.find(
-        (a) =>
-          a.startTime === startTime &&
-          getTimePeriod(a.startTime) === p &&
-          a.id !== editingId
-      ) ?? null
-    );
-  }, [startTime, existingActivities, editingId]);
-
-  const validate = (): boolean => {
-    const t = title.trim();
-    if (!t) {
-      setTitleError("Tên không được để trống");
-      return false;
-    }
-    if (t.length > 100) {
-      setTitleError("Tối đa 100 ký tự");
-      return false;
-    }
-    setTitleError(null);
-    return true;
+  const handleCancel = () => {
+    // A close action must not lose edits made within the debounce window.
+    if (mode === "add") saveDraft(values, true);
+    onCancel();
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    const title = values.title.trim();
+    if (!title) {
+      setTitleError("Nhập tên hoạt động");
+      return;
+    }
+    if (title.length > 100) {
+      setTitleError("Tên hoạt động tối đa 100 ký tự");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await onSubmit({
         date,
-        title: title.trim(),
-        startTime: startTime || undefined,
-        endTime: endTime || undefined,
-        category,
-        location: location.trim() || undefined,
-        note: note.trim() || undefined,
         order,
+        title,
+        startTime: values.startTime || undefined,
+        endTime: values.endTime || undefined,
+        category: values.category,
+        location: values.location.trim() || undefined,
+        note: values.note.trim() || undefined,
       });
       if (mode === "add") clearDraft();
       toast.success(
         mode === "add" ? "Đã thêm hoạt động" : "Đã cập nhật hoạt động"
       );
-      onSuccess();
       onCancel();
     } catch {
       toast.error(
@@ -489,390 +368,517 @@ const ActivityForm = ({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) onCancel();
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit();
       }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") handleCancel();
+      }}
+      className="rounded-2xl border border-primary-200 bg-surface-card p-3 shadow-sm sm:p-4"
     >
-      <DialogContent className="max-h-[88vh] max-w-md overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "add" ? "Thêm hoạt động" : "Chỉnh sửa hoạt động"}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {/* Draft banner (add mode only) */}
-          {mode === "add" && showDraftBanner && (
-            <div className="flex items-center justify-between rounded-lg bg-warning-50 px-3 py-2">
-              <span className="flex items-center gap-2 text-warning-800 text-xs">
-                <RotateCcw className="h-3.5 w-3.5" />
-                Có bản nháp chưa lưu
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-warning-700 text-xs"
-                  onClick={() => {
-                    if (savedDraft) {
-                      setTitle(savedDraft.title);
-                      setStartTime(savedDraft.startTime);
-                      setEndTime(savedDraft.endTime);
-                      setCategory(savedDraft.category);
-                      setLocation(savedDraft.location);
-                      setNote(savedDraft.note);
-                      setPeriod(savedDraft.period);
-                    }
-                    setShowDraftBanner(false);
-                  }}
-                >
-                  Khôi phục
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-on-surface-variant text-xs"
-                  onClick={() => {
-                    clearDraft();
-                    setShowDraftBanner(false);
-                  }}
-                >
-                  Bỏ qua
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Title (required) */}
-          <div>
-            <Label htmlFor="act-title" className="text-xs">
-              Tên *
-            </Label>
-            <Input
-              id="act-title"
-              placeholder="VD: Tham quan Bà Nà Hills"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (titleError) setTitleError(null);
+      {showDraft && savedDraft && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-50 px-3 py-2 text-warning-800 text-xs">
+          <span className="flex items-center gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Có bản nháp chưa lưu
+          </span>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-warning-800 text-xs"
+              onClick={() => {
+                setValues(savedDraft);
+                setShowDraft(false);
               }}
-              className={cn(
-                "mt-1 h-8 text-sm",
-                titleError && "border-error-500"
-              )}
-            />
-            {titleError && (
-              <p className="mt-0.5 text-error-500 text-xs">{titleError}</p>
+            >
+              Khôi phục
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                clearDraft();
+                setShowDraft(false);
+              }}
+            >
+              Bỏ qua
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_176px_auto] sm:items-end">
+        <div>
+          <Label htmlFor={`${mode}-activity-title`} className="sr-only">
+            Tên hoạt động
+          </Label>
+          <Input
+            id={`${mode}-activity-title`}
+            autoFocus
+            value={values.title}
+            placeholder="Tên hoạt động"
+            onChange={(event) => {
+              updateValue("title", event.target.value);
+              setTitleError(null);
+            }}
+            className={cn("h-11", titleError && "border-error-500")}
+          />
+          {titleError && (
+            <p className="mt-1 text-error-500 text-xs">{titleError}</p>
+          )}
+        </div>
+        <NumericTimeInput
+          id={`${mode}-activity-time`}
+          label="Bắt đầu"
+          value={values.startTime}
+          onChange={(value) => updateValue("startTime", value)}
+          hasWarning={timeConflicts.length > 0}
+        />
+        <div className="flex gap-2">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="h-11 flex-1 bg-primary-500 text-white sm:flex-none"
+          >
+            {isSubmitting && (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             )}
-          </div>
+            {mode === "add" ? "Thêm" : "Lưu"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11"
+            onClick={handleCancel}
+            aria-label="Hủy"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
-          {/* Period + Category (required) */}
-          <div className="flex flex-col gap-1">
-            <div>
-              <Label className="text-xs">Buổi</Label>
-              <Select
-                value={period}
-                onValueChange={(v) => handlePeriodChange(v as TimePeriod)}
-              >
-                <SelectTrigger className="mt-1 h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIME_PERIODS.map((p) => {
-                    const ui = PERIOD_UI[p];
-                    return (
-                      <SelectItem key={p} value={p} className="text-sm">
-                        <span className="flex items-center gap-1.5">
-                          <ui.Icon
-                            className={cn("h-3.5 w-3.5", ui.iconColor)}
-                          />
-                          {TIME_PERIOD_CONFIG[p].label}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Danh mục *</Label>
-              <Select
-                value={category}
-                onValueChange={(v) => setCategory(v as ActivityType)}
-              >
-                <SelectTrigger className="mt-1 h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <SelectItem
-                      key={opt.value}
-                      value={opt.value}
-                      className="text-sm"
-                    >
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      {timeConflicts.length > 0 && (
+        <p
+          className="mt-2 flex items-center gap-1.5 rounded-lg bg-warning-50 px-2.5 py-2 text-warning-800 text-xs"
+          role="status"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Trùng giờ {values.startTime} với{" "}
+          {timeConflicts.map((activity) => activity.title).join(", ")}.
+        </p>
+      )}
 
-          {/* Times (optional) */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label
-                htmlFor="act-start"
-                className="flex items-center gap-1 text-xs"
-              >
-                Bắt đầu
-                <span className="text-on-surface-variant/50">(tùy chọn)</span>
-              </Label>
-              <Input
-                id="act-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => handleStartTimeChange(e.target.value)}
-                className={cn(
-                  "mt-1 h-8 text-sm",
-                  startTimeRangeError && "border-error-500"
-                )}
-              />
-              {startTimeRangeError && (
-                <p className="mt-0.5 text-error-500 text-xs">
-                  {startTimeRangeError}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label
-                htmlFor="act-end"
-                className="flex items-center gap-1 text-xs"
-              >
-                Kết thúc
-                <span className="text-on-surface-variant/50">(tùy chọn)</span>
-              </Label>
-              <Input
-                id="act-end"
-                type="time"
-                value={endTime}
-                min={startTime || undefined}
-                onChange={(e) => {
-                  setEndTime(e.target.value);
-                  if (
-                    startTime &&
-                    e.target.value &&
-                    e.target.value <= startTime
-                  ) {
-                    setEndTimeError("Phải sau giờ bắt đầu");
-                  } else {
-                    setEndTimeError(null);
-                  }
-                }}
-                className={cn(
-                  "mt-1 h-8 text-sm",
-                  endTimeError && "border-error-500"
-                )}
-              />
-              {endTimeError && (
-                <p className="mt-0.5 text-error-500 text-xs">{endTimeError}</p>
-              )}
-            </div>
-          </div>
+      <button
+        type="button"
+        onClick={() => setShowDetails((value) => !value)}
+        className="mt-2 flex min-h-11 items-center gap-1.5 rounded-lg px-2 font-medium text-on-surface-variant text-sm transition-colors hover:bg-surface-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      >
+        {showDetails ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+        {showDetails ? "Ẩn chi tiết" : "Thêm chi tiết"}
+      </button>
 
-          {/* Location (optional) */}
+      {showDetails && (
+        <div className="mt-2 grid gap-3 border-black/5 border-t pt-3 sm:grid-cols-2">
+          <NumericTimeInput
+            id={`${mode}-activity-end`}
+            label="Kết thúc"
+            value={values.endTime}
+            onChange={(value) => updateValue("endTime", value)}
+          />
           <div>
-            <Label
-              htmlFor="act-location"
-              className="flex items-center gap-1 text-xs"
+            <Label className="text-xs">Loại hoạt động</Label>
+            <Select
+              value={values.category}
+              onValueChange={(value) =>
+                updateValue("category", value as ActivityType)
+              }
             >
+              <SelectTrigger className="mt-1 h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor={`${mode}-activity-location`} className="text-xs">
               Địa điểm
-              <span className="text-on-surface-variant/50">(tùy chọn)</span>
             </Label>
-            <p className="text-on-surface-variant/50 text-xs italic">
-              *Tip: Nhập địa điểm để thấy được trên bản đồ
-            </p>
             <Input
-              id="act-location"
-              placeholder="VD: Bà Nà Hills, Đà Nẵng"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="mt-1 h-8 text-sm"
+              id={`${mode}-activity-location`}
+              value={values.location}
+              placeholder="Địa điểm (không bắt buộc)"
+              onChange={(event) => updateValue("location", event.target.value)}
+              className="mt-1 h-10"
             />
           </div>
-
-          {/* Note (optional) */}
-          <div>
-            <Label
-              htmlFor="act-note"
-              className="flex items-center gap-1 text-xs"
-            >
+          <div className="sm:col-span-2">
+            <Label htmlFor={`${mode}-activity-note`} className="text-xs">
               Ghi chú
-              <span className="text-on-surface-variant/50">(tùy chọn)</span>
             </Label>
             <Textarea
-              id="act-note"
-              placeholder="Thêm ghi chú..."
+              id={`${mode}-activity-note`}
               rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="mt-1 resize-none bg-surface-dim text-sm"
+              value={values.note}
+              placeholder="Thông tin cần nhớ"
+              onChange={(event) => updateValue("note", event.target.value)}
+              className="mt-1 resize-none"
             />
           </div>
         </div>
-
-        {/* Time conflict error — Bug 5 */}
-        {timeConflict && startTime && (
-          <div className="flex items-start gap-2 rounded-lg bg-error-50 px-3 py-2">
-            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-error-500" />
-            <p className="text-error-700 text-xs">
-              Đã có hoạt động &quot;{timeConflict.title}&quot; vào lúc{" "}
-              {timeConflict.startTime}. Vui lòng chọn thời gian khác.
-            </p>
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Hủy
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              isSubmitting ||
-              !!timeConflict ||
-              !!startTimeRangeError ||
-              !!endTimeError
-            }
-            className="bg-primary-500 text-white"
-          >
-            {isSubmitting && (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            )}
-            {mode === "add" ? "Thêm hoạt động" : "Lưu thay đổi"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+    </form>
   );
 };
 
-// ─── Period Section ──────────────────────────────────────────
-
-const PeriodSection = ({
-  period,
-  activities,
-  date,
-  totalActivitiesForDay,
-  onDeleteActivity,
-  onOpenAdd,
-  onOpenEdit,
-  canEditActivity,
+const ActivityCard = ({
+  activity,
+  canEdit,
   canAdd,
-  currentUserRole,
+  isDragging,
+  dragHandle,
+  onEdit,
+  onDelete,
+  onAddBefore,
+  onAddAfter,
 }: {
-  period: TimePeriod;
-  activities: ActivityWithId[];
-  date: string;
-  totalActivitiesForDay: number;
-  onDeleteActivity: (id: string) => void;
-  onOpenAdd: (date: string, period: TimePeriod, order: number) => void;
-  onOpenEdit: (activity: ActivityWithId) => void;
-  canEditActivity: (a: ActivityWithId) => boolean;
-  canAdd: boolean;
-  currentUserRole?: TripRole;
+  activity: ActivityWithId;
+  canEdit: boolean;
+  canAdd?: boolean;
+  isDragging?: boolean;
+  dragHandle?: ReactNode;
+  onEdit: () => void;
+  onDelete: () => void;
+  onAddBefore?: () => void;
+  onAddAfter?: () => void;
 }) => {
-  const { label } = TIME_PERIOD_CONFIG[period];
-  const ui = PERIOD_UI[period];
+  const category = ACTIVITY_TYPE_CONFIG[activity.category];
+  return (
+    <article
+      onClick={canEdit ? onEdit : undefined}
+      className={cn(
+        "group relative rounded-2xl border border-black/5 bg-surface-card p-3 shadow-sm transition-[box-shadow,border-color] sm:p-4",
+        canEdit && "cursor-pointer hover:border-primary-200 hover:shadow-md",
+        isDragging && "shadow-xl ring-2 ring-primary-300"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex w-14 shrink-0 flex-col pt-0.5 font-mono">
+          <span className="font-semibold text-on-surface text-sm">
+            {activity.startTime ?? "—:—"}
+          </span>
+          {activity.endTime && (
+            <span className="mt-0.5 text-on-surface-variant text-xs">
+              {activity.endTime}
+            </span>
+          )}
+        </div>
+        <div className="relative flex self-stretch">
+          <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-primary-500 ring-4 ring-primary-100" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-start gap-1.5">
+                {dragHandle}
+                <h4 className="font-semibold text-on-surface leading-snug">
+                  {activity.title}
+                </h4>
+              </div>
+              <span
+                className={cn(
+                  "mt-1 inline-flex rounded-full px-2 py-0.5 text-xs",
+                  category.bgColor,
+                  category.color
+                )}
+              >
+                {category.label}
+              </span>
+            </div>
+            {(canAdd || canEdit) && (
+              <div className="flex shrink-0 gap-1">
+                {canAdd && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl text-primary-500 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                        aria-label={`Thêm hoạt động gần ${activity.title}`}
+                        title="Thêm hoạt động gần đây"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="min-w-56"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <DropdownMenuItem
+                        className="min-h-11 cursor-pointer focus:text-on-surface"
+                        onSelect={onAddBefore}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                        <span className="flex flex-col">
+                          <span>Thêm phía trên</span>
+                          <span className="text-on-surface-variant text-xs">
+                            Gợi ý -15 phút
+                          </span>
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="min-h-11 cursor-pointer focus:text-on-surface"
+                        onSelect={onAddAfter}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                        <span className="flex flex-col">
+                          <span>Thêm phía dưới</span>
+                          <span className="text-on-surface-variant text-xs">
+                            Gợi ý +15 phút
+                          </span>
+                        </span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {canEdit && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit();
+                      }}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl text-on-surface-variant transition-colors hover:bg-surface-dim hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      aria-label={`Chỉnh sửa ${activity.title}`}
+                      title="Chỉnh sửa"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete();
+                      }}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl text-error-500 transition-colors hover:bg-error-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-400"
+                      aria-label={`Xóa ${activity.title}`}
+                      title="Xóa"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          {(activity.location || activity.mapsUrl) && (
+            <div className="mt-2 flex min-w-0 items-center gap-1.5 text-on-surface-variant text-sm">
+              <MapPin className="h-4 w-4 shrink-0" />
+              {activity.location && (
+                <span className="truncate">{activity.location}</span>
+              )}
+              {activity.mapsUrl && (
+                <a
+                  href={activity.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-surface-dim"
+                  aria-label="Mở địa điểm"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          )}
+          {activity.note && (
+            <p className="mt-2 text-on-surface-variant text-sm">
+              {activity.note}
+            </p>
+          )}
+          {activity.cost !== undefined && activity.cost > 0 && (
+            <p className="mt-2 font-medium text-primary-700 text-sm">
+              {formatCurrency(activity.cost)}
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+};
 
-  // Make empty periods a valid drop target so cross-period DnD works even when
-  // the destination period has no activities (SortableContext has no items to collide with).
-  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
-    id: `period-empty::${date}::${period}`,
-    data: { type: "period-empty", date, period },
-    disabled: activities.length > 0, // only needed when the period is truly empty
+const SortableActivityCard = ({
+  activity,
+  index,
+  canEdit,
+  canAdd,
+  onEdit,
+  onDelete,
+  onAddBefore,
+  onAddAfter,
+}: {
+  activity: ActivityWithId;
+  index: number;
+  canEdit: boolean;
+  canAdd: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onAddBefore: () => void;
+  onAddAfter: () => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: activity.id,
+    data: { type: "activity", date: activity.date, index },
+    disabled: !canEdit,
   });
-
   return (
     <div
-      ref={activities.length === 0 ? setDropRef : undefined}
-      className="flex flex-col gap-3"
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.25 : 1,
+      }}
     >
-      {/* Period header */}
-      <div className="flex items-center gap-2">
-        <div
-          className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-            ui.iconBg
-          )}
-        >
-          <ui.Icon className={cn("h-4 w-4", ui.iconColor)} />
-        </div>
-        <span className="font-semibold text-on-surface text-sm">{label}</span>
-        <span className="ml-auto text-on-surface-variant/60 text-xs">
-          {PERIOD_TIME_LABEL[period]}
-        </span>
-      </div>
-
-      {/* Activity list */}
-      {activities.length > 0 ? (
-        <SortableContext
-          items={activities.map((a) => a.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="flex flex-col gap-2">
-            {activities.map((activity) => (
-              <SortableActivityRow
-                key={activity.id}
-                activity={activity}
-                onEdit={() => onOpenEdit(activity)}
-                onDelete={onDeleteActivity}
-                canEdit={canEditActivity(activity)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      ) : (
-        /* Visual drop-zone shown when period is empty */
-        <div
-          className={cn(
-            "flex min-h-10 items-center justify-center rounded-xl border-2 border-dashed p-3 text-sm text-white italic opacity-50 transition-colors",
-            isDropOver
-              ? "border-warning-400 bg-warning-900/20"
-              : "border-secondary-700/30",
-            currentUserRole === "member" || currentUserRole === "treasurer"
-              ? "cursor-not-allowed opacity-50"
-              : "cursor-pointer"
-          )}
-        >
-          {currentUserRole === "member" || currentUserRole === "treasurer"
-            ? "Thêm hoạt động"
-            : "Kéo hoạt động vào đây"}
-        </div>
-      )}
-
-      {/* Add button */}
-      {canAdd && (
-        <button
-          type="button"
-          onClick={() => onOpenAdd(date, period, totalActivitiesForDay)}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border-2 border-warning-600 border-dashed py-3 font-medium text-sm text-warning-400 transition-colors hover:border-warning-500 hover:bg-warning-900/20"
-        >
-          <Plus className="h-4 w-4" />
-          Thêm hoạt động
-        </button>
-      )}
+      <ActivityCard
+        activity={activity}
+        canEdit={canEdit}
+        canAdd={canAdd}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onAddBefore={onAddBefore}
+        onAddAfter={onAddAfter}
+        dragHandle={
+          canEdit ? (
+            <button
+              ref={setActivatorNodeRef}
+              type="button"
+              onClick={(event) => event.stopPropagation()}
+              className="-ml-2 flex h-11 w-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 active:cursor-grabbing"
+              aria-label={`Kéo để di chuyển ${activity.title}`}
+              title="Kéo để di chuyển"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          ) : undefined
+        }
+      />
     </div>
   );
 };
 
-// ─── Activity Dialog State ───────────────────────────────────
+const DayChip = ({
+  day,
+  count,
+  selected,
+  dragging,
+  onSelect,
+}: {
+  day: { dayNumber: number; date: string };
+  count: number;
+  selected: boolean;
+  dragging: boolean;
+  onSelect: () => void;
+}) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `day-${day.date}`,
+    data: { type: "day-chip", date: day.date },
+    disabled: !dragging,
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        "flex min-h-16 min-w-24 shrink-0 flex-col justify-center rounded-xl border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400",
+        selected
+          ? "border-primary-500 bg-primary-500 text-white"
+          : "border-black/5 bg-surface-card text-on-surface hover:bg-surface-dim",
+        isOver &&
+          "border-primary-400 bg-primary-100 text-primary-900 ring-2 ring-primary-300"
+      )}
+    >
+      <span className="font-semibold text-sm">
+        Ngày {day.dayNumber} · {formatWeekday(day.date)}
+      </span>
+      <span
+        className={cn(
+          "mt-0.5 text-xs",
+          selected ? "text-white/80" : "text-on-surface-variant"
+        )}
+      >
+        {count} hoạt động
+      </span>
+    </button>
+  );
+};
 
-type ActivityDialogState =
-  | { mode: "add"; date: string; period: TimePeriod; order: number }
-  | { mode: "edit"; activity: ActivityWithId };
-
-// ─── Main Component ──────────────────────────────────────────
+const EmptyTimeline = ({
+  date,
+  canAdd,
+  onAdd,
+}: {
+  date: string;
+  canAdd: boolean;
+  onAdd: () => void;
+}) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `timeline-${date}`,
+    data: { type: "timeline-empty", date, index: 0 },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-h-44 flex-col items-center justify-center rounded-2xl border border-black/5 bg-surface-card px-4 text-center",
+        isOver && "border-primary-300 bg-primary-50 ring-2 ring-primary-200"
+      )}
+    >
+      <Clock3 className="h-8 w-8 text-on-surface-variant/50" />
+      <p className="mt-3 font-medium text-on-surface">
+        Ngày này chưa có hoạt động
+      </p>
+      <p className="mt-1 text-on-surface-variant text-sm">
+        Bắt đầu bằng một hoạt động đơn giản, bạn có thể bổ sung chi tiết sau.
+      </p>
+      {canAdd && (
+        <Button onClick={onAdd} variant="outline" className="mt-4 h-11 gap-2">
+          <Plus className="h-4 w-4" />
+          Thêm hoạt động
+        </Button>
+      )}
+    </div>
+  );
+};
 
 interface ItineraryTabProps {
   tripId: string;
@@ -906,520 +912,386 @@ export const ItineraryTab = ({
   currentUserId,
   ownerName,
 }: ItineraryTabProps) => {
-  const [activityDialog, setActivityDialog] =
-    useState<ActivityDialogState | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(days[0]?.date ?? "");
+  const [addPlacement, setAddPlacement] = useState<AddPlacement | null>(null);
+  const [editingActivity, setEditingActivity] = useState<ActivityWithId | null>(
+    null
+  );
+  const [deleteActivity, setDeleteActivity] = useState<ActivityWithId | null>(
+    null
+  );
   const [draggedActivity, setDraggedActivity] = useState<ActivityWithId | null>(
     null
   );
-
-  // ── Collapse state (localStorage-backed) ────────────────────
-  const sharedCollapseKey = `itinerary_shared_collapsed_${tripId}`;
-  const personalCollapseKey = `itinerary_personal_collapsed_${tripId}`;
-
-  const [isSharedCollapsed, setIsSharedCollapsed] = useState(
-    () => localStorage.getItem(sharedCollapseKey) === "true"
-  );
-  const [isPersonalCollapsed, setIsPersonalCollapsed] = useState(
-    () => localStorage.getItem(personalCollapseKey) === "true"
-  );
-
-  const toggleShared = () => {
-    setIsSharedCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(sharedCollapseKey, String(next));
-      return next;
-    });
-  };
-
-  const togglePersonal = () => {
-    setIsPersonalCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(personalCollapseKey, String(next));
-      return next;
-    });
-  };
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoveredDate = useRef<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const canEditActivity = useCallback(
-    (activity: ActivityWithId): boolean => {
-      if (currentUserRole === "owner") return true;
-      if (currentUserRole === "editor")
-        return activity.createdBy === currentUserId;
-      return false;
+  useEffect(() => {
+    if (days.length > 0 && !days.some((day) => day.date === selectedDate))
+      setSelectedDate(days[0].date);
+  }, [days, selectedDate]);
+
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
     },
-    [currentUserRole, currentUserId]
+    []
   );
 
+  const selectedDay =
+    days.find((day) => day.date === selectedDate) ?? days[0] ?? null;
+  const selectedActivities = useMemo(
+    () =>
+      sortTimelineActivities(activitiesByDate[selectedDay?.date ?? ""] ?? []),
+    [activitiesByDate, selectedDay?.date]
+  );
   const canAdd = currentUserRole === "owner" || currentUserRole === "editor";
+  const canEdit = (activity: ActivityWithId) =>
+    currentUserRole === "owner" ||
+    (currentUserRole === "editor" && activity.createdBy === currentUserId);
 
-  // Flat lookup: activityId → { date, period, activity }
-  const activityMap = useMemo(() => {
-    const map = new Map<
-      string,
-      { date: string; period: TimePeriod; activity: ActivityWithId }
-    >();
-    for (const [date, acts] of Object.entries(activitiesByDate)) {
-      for (const a of acts) {
-        map.set(a.id, {
-          date,
-          period: getTimePeriod(a.startTime),
-          activity: a,
-        });
-      }
-    }
-    return map;
-  }, [activitiesByDate]);
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const entry = activityMap.get(String(event.active.id));
-    if (entry) setDraggedActivity(entry.activity);
+  const resetEditor = () => {
+    setAddPlacement(null);
+    setEditingActivity(null);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    setDraggedActivity(null);
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  const openRelativeAdd = (
+    activity: ActivityWithId,
+    position: "before" | "after"
+  ) => {
+    setEditingActivity(null);
+    setAddPlacement({
+      kind: "relative",
+      activityId: activity.id,
+      position,
+      startTime: getRelativeActivityTime(activity.startTime, position),
+      order: activity.order + (position === "before" ? -0.5 : 0.5),
+    });
+  };
 
-    const activeEntry = activityMap.get(String(active.id));
-    if (!activeEntry) return;
+  const handleDragStart = (event: DragStartEvent) => {
+    const activity = Object.values(activitiesByDate)
+      .flat()
+      .find((item) => item.id === String(event.active.id));
+    setDraggedActivity(activity ?? null);
+    resetEditor();
+  };
 
-    // Handle drop onto an empty period (useDroppable zone, no activity items to target)
-    const overData = (over.data?.current ?? {}) as {
-      type?: string;
-      date?: string;
-      period?: string;
-    };
-    if (overData.type === "period-empty" && overData.date && overData.period) {
-      const targetDate = overData.date;
-      const targetPeriod = overData.period as TimePeriod;
-      // No-op if already in this period
-      if (
-        targetDate === activeEntry.date &&
-        targetPeriod === activeEntry.period
-      )
-        return;
-      const newStartTime = TIME_PERIOD_CONFIG[targetPeriod].defaultTime;
-      if (targetDate !== activeEntry.date) {
-        // Cross-day: remove from source day, insert as first item in target day
-        const sourceActs = (activitiesByDate[activeEntry.date] ?? []).filter(
-          (a) => a.id !== String(active.id)
-        );
-        onBatchUpdateOrders([
-          ...sourceActs.map((a, i) => ({ id: a.id, order: i })),
-          {
-            id: String(active.id),
-            order: 0,
-            startTime: newStartTime,
-            date: targetDate,
-          },
-        ]);
-      } else {
-        // Same day, different period: update start time so period classification changes
-        const dayActs = activitiesByDate[activeEntry.date] ?? [];
-        const others = dayActs.filter((a) => a.id !== String(active.id));
-        onBatchUpdateOrders([
-          ...others.map((a, i) => ({ id: a.id, order: i })),
-          {
-            id: String(active.id),
-            order: others.length,
-            startTime: newStartTime,
-          },
-        ]);
-      }
+  const handleDragOver = (event: DragOverEvent) => {
+    const data = event.over?.data.current as
+      | { type?: string; date?: string }
+      | undefined;
+    if (data?.type !== "day-chip" || !data.date || data.date === selectedDate) {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+      hoveredDate.current = null;
       return;
     }
+    if (hoveredDate.current === data.date) return;
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoveredDate.current = data.date;
+    hoverTimer.current = setTimeout(() => {
+      setSelectedDate(data.date!);
+      hoveredDate.current = null;
+      hoverTimer.current = null;
+    }, 400);
+  };
 
-    const overEntry = activityMap.get(String(over.id));
-    if (!overEntry) return;
-
-    const isSamePeriod =
-      activeEntry.date === overEntry.date &&
-      activeEntry.period === overEntry.period;
-
-    if (isSamePeriod) {
-      // ── REORDER within same period: swap startTimes between the two items only ──
-      // Other items in the period are not touched.
-      onBatchUpdateOrders([
-        {
-          id: String(active.id),
-          order: overEntry.activity.order,
-          startTime: overEntry.activity.startTime,
-        },
-        {
-          id: String(over.id),
-          order: activeEntry.activity.order,
-          startTime: activeEntry.activity.startTime,
-        },
-      ]);
-    } else {
-      // ── MOVE to different period/day ──
-      // Rule: dragged item gets time = item-before-it + 1 min (or period base time if inserted first).
-      // Existing items in BOTH periods keep their original startTimes — only `order` is updated.
-      const srcActs = (activitiesByDate[activeEntry.date] ?? [])
-        .filter(
-          (a) =>
-            getTimePeriod(a.startTime) === activeEntry.period &&
-            a.id !== String(active.id)
-        )
-        .sort((a, b) =>
-          a.order !== b.order
-            ? a.order - b.order
-            : (a.startTime ?? "").localeCompare(b.startTime ?? "")
-        );
-      const dstActsRaw = (activitiesByDate[overEntry.date] ?? [])
-        .filter((a) => getTimePeriod(a.startTime) === overEntry.period)
-        .sort((a, b) =>
-          a.order !== b.order
-            ? a.order - b.order
-            : (a.startTime ?? "").localeCompare(b.startTime ?? "")
-        );
-      const overIdx = dstActsRaw.findIndex((a) => a.id === String(over.id));
-
-      // ── INSERT + CASCADE SHIFT in destination period ──────────
-      const dstBase = getSessionBase(overEntry.period);
-      const { max: dstMax } = getSessionRange(overEntry.period);
-      const isCrossDay = activeEntry.date !== overEntry.date;
-
-      // Initial time for dragged item
-      const draggedTime =
-        overIdx > 0
-          ? addMinutesToTime(dstActsRaw[overIdx - 1].startTime ?? dstBase, 1)
-          : dstBase;
-
-      // Build destination list with dragged item spliced in
-      type DstItem = { id: string; startTime: string };
-      const dstItems: DstItem[] = dstActsRaw.map((a) => ({
-        id: a.id,
-        startTime: a.startTime ?? dstBase,
-      }));
-      dstItems.splice(overIdx, 0, {
-        id: String(active.id),
-        startTime: draggedTime,
-      });
-
-      // Cascade: push items whose time ≤ previous item's time
-      for (let i = overIdx + 1; i < dstItems.length; i++) {
-        if (dstItems[i].startTime <= dstItems[i - 1].startTime) {
-          dstItems[i] = {
-            ...dstItems[i],
-            startTime: addMinutesToTime(dstItems[i - 1].startTime, 1),
-          };
-        } else {
-          break;
-        }
-      }
-
-      // Reject if last cascaded time overflows the session
-      if (dstItems[dstItems.length - 1].startTime > dstMax) {
-        toast.error("Không thể di chuyển: buổi đích đã đầy (vượt khung giờ).");
-        return;
-      }
-
-      onBatchUpdateOrders([
-        // Source: reorder to fill gap, keep startTime
-        ...srcActs.map((a, i) => ({ id: a.id, order: i })),
-        // Destination: order for all items, startTime only where changed
-        ...dstItems.map((item, i) => {
-          const isMovedItem = item.id === String(active.id);
-          const original = dstActsRaw.find((a) => a.id === item.id);
-          const timeChanged =
-            isMovedItem ||
-            (original && (original.startTime ?? dstBase) !== item.startTime);
-          return {
-            id: item.id,
-            order: i,
-            ...(timeChanged ? { startTime: item.startTime } : {}),
-            ...(isCrossDay && isMovedItem ? { date: overEntry.date } : {}),
-          };
-        }),
-      ]);
+  const handleDragEnd = async (event: DragEndEvent) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    hoveredDate.current = null;
+    const activeId = String(event.active.id);
+    const over = event.over;
+    setDraggedActivity(null);
+    if (!over || activeId === String(over.id)) return;
+    const data = over.data.current as
+      | { type?: string; date?: string; index?: number }
+      | undefined;
+    const targetDate = data?.date ?? selectedDate;
+    const destination = sortTimelineActivities(
+      (activitiesByDate[targetDate] ?? []).filter(
+        (item) => item.id !== activeId
+      )
+    );
+    const targetIndex =
+      data?.type === "activity"
+        ? (data.index ?? destination.length)
+        : destination.length;
+    const result = buildTimelineMoveUpdates({
+      activitiesByDate,
+      activeId,
+      targetDate,
+      targetIndex,
+      preserveTime: data?.type === "day-chip",
+    });
+    if (!result) return;
+    try {
+      await onBatchUpdateOrders(result.updates);
+      setSelectedDate(result.placement.date);
+      toast.success(`Đã chuyển hoạt động đến ${result.placement.startTime}`);
+    } catch {
+      toast.error("Không thể di chuyển hoạt động");
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
       </div>
     );
   }
 
+  const editorDefaults: EditorValues = editingActivity
+    ? {
+        title: editingActivity.title,
+        startTime: editingActivity.startTime ?? "",
+        endTime: editingActivity.endTime ?? "",
+        category: editingActivity.category,
+        location: editingActivity.location ?? "",
+        note: editingActivity.note ?? "",
+      }
+    : {
+        ...EMPTY_EDITOR_VALUES,
+        startTime:
+          addPlacement?.kind === "relative"
+            ? addPlacement.startTime
+            : getSuggestedNewActivityTime(selectedActivities),
+      };
+
   return (
-    <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-      {/* ── Left: shared + personal itinerary ───────────────────── */}
-      <div className="min-w-0 flex-1 space-y-4">
-        {/* ── Shared itinerary block ──────────────────────────────── */}
-        {/* Block header (always visible) */}
-        <button
-          type="button"
-          onClick={toggleShared}
-          className="flex w-full items-center justify-between rounded-2xl bg-surface-card px-4 py-3 ring-1 ring-black/5 transition hover:bg-surface-dim"
-        >
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-tertiary-500" />
-            <span className="font-semibold text-on-surface text-sm">
-              Lịch trình chung
-            </span>
-            <span className="rounded-full bg-tertiary-600 px-2 py-0.5 text-white text-xs">
-              {Object.values(activitiesByDate).flat().length} hoạt động
+    <DndContext
+      sensors={sensors}
+      collisionDetection={timelineCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDraggedActivity(null)}
+    >
+      <div className="space-y-4 pb-6">
+        <div className="sticky top-13 z-10 -mx-4 border-black/5 border-b bg-surface/95 px-4 py-3 backdrop-blur sm:top-14 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+            {days.map((day) => (
+              <DayChip
+                key={day.date}
+                day={day}
+                count={(activitiesByDate[day.date] ?? []).length}
+                selected={selectedDay?.date === day.date}
+                dragging={Boolean(draggedActivity)}
+                onSelect={() => {
+                  setSelectedDate(day.date);
+                  resetEditor();
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-on-surface-variant text-sm">
+              {selectedDay ? formatDate(selectedDay.date) : "Lịch trình"}
+            </p>
+            <h2 className="font-bold text-on-surface text-xl">
+              Ngày {selectedDay?.dayNumber ?? "—"}
+            </h2>
+          </div>
+          {canAdd && !addPlacement && !editingActivity && selectedDay && (
+            <Button
+              onClick={() => setAddPlacement({ kind: "end" })}
+              className="h-11 gap-2 bg-primary-500 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm hoạt động
+            </Button>
+          )}
+        </header>
+
+        {(currentUserRole === "member" || currentUserRole === "treasurer") && (
+          <div className="flex items-start gap-2 rounded-xl bg-warning-50 px-3 py-2.5 text-sm text-warning-800">
+            <Eye className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Bạn đang xem lịch trình chung.{" "}
+              {ownerName
+                ? `Liên hệ ${ownerName} nếu cần thay đổi.`
+                : "Liên hệ chủ chuyến đi nếu cần thay đổi."}
             </span>
           </div>
-          {isSharedCollapsed ? (
-            <ChevronRight className="h-4 w-4 text-on-surface-variant" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-on-surface-variant" />
-          )}
-        </button>
-        {/* Shared block body */}
-        {!isSharedCollapsed && (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+        )}
+
+        {addPlacement?.kind === "end" && selectedDay && (
+          <InlineActivityEditor
+            key={`add-${selectedDay.date}`}
+            mode="add"
+            tripId={tripId}
+            date={selectedDay.date}
+            order={selectedActivities.length}
+            initialValues={editorDefaults}
+            existingActivities={selectedActivities}
+            draftId="end"
+            onSubmit={onAddActivity}
+            onCancel={() => setAddPlacement(null)}
+          />
+        )}
+
+        {selectedDay && selectedActivities.length === 0 && !addPlacement ? (
+          <EmptyTimeline
+            date={selectedDay.date}
+            canAdd={canAdd}
+            onAdd={() => setAddPlacement({ kind: "end" })}
+          />
+        ) : (
+          <SortableContext
+            items={selectedActivities.map((activity) => activity.id)}
+            strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-4">
-              {/* Read-only banner for member/treasurer */}
-              {(currentUserRole === "member" ||
-                currentUserRole === "treasurer") && (
-                <div className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700">
-                  <Eye className="h-4 w-4 shrink-0" />
-                  <span>
-                    Bạn chỉ có quyền xem lịch trình.
-                    {ownerName ? (
-                      <>
-                        {" "}
-                        Liên hệ <strong>{ownerName}</strong> nếu cần thay đổi.
-                      </>
-                    ) : (
-                      " Liên hệ chủ chuyến đi nếu cần thay đổi."
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {days.map((day) => {
-                const dayActivities = activitiesByDate[day.date] ?? [];
-                const byPeriod: Record<TimePeriod, ActivityWithId[]> = {
-                  morning: [],
-                  afternoon: [],
-                  evening: [],
-                };
-                for (const a of dayActivities) {
-                  byPeriod[getTimePeriod(a.startTime)].push(a);
-                }
-                for (const p of TIME_PERIODS) {
-                  byPeriod[p].sort((a, b) =>
-                    a.order !== b.order
-                      ? a.order - b.order
-                      : (a.startTime ?? "").localeCompare(b.startTime ?? "")
-                  );
-                }
-
+            <div className="space-y-3">
+              {selectedActivities.map((activity, index) => {
+                const previous = selectedActivities[index - 1];
+                const period = getActivityPeriod(activity);
+                const showPeriod =
+                  !previous || getActivityPeriod(previous) !== period;
+                const relativeAdd =
+                  addPlacement?.kind === "relative" &&
+                  addPlacement.activityId === activity.id
+                    ? addPlacement
+                    : null;
                 return (
-                  <div
-                    key={day.date}
-                    className="overflow-hidden rounded-2xl bg-surface-card shadow-sm ring-1 ring-black/5"
-                  >
-                    {/* Day header */}
-                    <div className="flex items-center gap-3 border-black/5 border-b px-4 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tertiary-500 font-bold text-sm text-white">
-                        {day.dayNumber}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-on-surface text-sm">
-                          Ngày {day.dayNumber}
-                        </p>
-                        <p className="text-on-surface-variant text-xs">
-                          {formatDate(day.date)}
-                        </p>
-                      </div>
-                      {dayActivities.length > 0 && (
-                        <span className="shrink-0 rounded-full bg-tertiary-600 px-2.5 py-0.5 text-white text-xs">
-                          {dayActivities.length} hoạt động
+                  <div key={activity.id} className="space-y-2">
+                    {showPeriod && (
+                      <div className="flex items-center gap-3 pt-2">
+                        <span className="shrink-0 font-medium text-on-surface-variant text-xs uppercase tracking-wide">
+                          {PERIOD_LABELS[period]}
                         </span>
-                      )}
-                    </div>
-
-                    {/* Period sections – 3 columns on desktop, stacked on mobile */}
-                    <div className="grid grid-cols-1 divide-y divide-transparent md:grid-cols-3 md:divide-x md:divide-y-0">
-                      {TIME_PERIODS.map((p) => (
-                        <div key={p} className="p-2">
-                          <PeriodSection
-                            period={p}
-                            activities={byPeriod[p]}
-                            date={day.date}
-                            totalActivitiesForDay={dayActivities.length}
-                            onDeleteActivity={setConfirmDeleteId}
-                            onOpenAdd={(d, period, order) =>
-                              setActivityDialog({
-                                mode: "add",
-                                date: d,
-                                period,
-                                order,
-                              })
-                            }
-                            onOpenEdit={(activity) =>
-                              setActivityDialog({ mode: "edit", activity })
-                            }
-                            canEditActivity={canEditActivity}
-                            canAdd={canAdd}
-                            currentUserRole={currentUserRole}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                        <span className="h-px flex-1 bg-black/5" />
+                      </div>
+                    )}
+                    {relativeAdd?.position === "before" && (
+                      <InlineActivityEditor
+                        key={`add-before-${activity.id}`}
+                        mode="add"
+                        tripId={tripId}
+                        date={activity.date}
+                        order={relativeAdd.order}
+                        initialValues={editorDefaults}
+                        existingActivities={selectedActivities}
+                        draftId={`before-${activity.id}`}
+                        onSubmit={onAddActivity}
+                        onCancel={() => setAddPlacement(null)}
+                      />
+                    )}
+                    {editingActivity?.id === activity.id ? (
+                      <InlineActivityEditor
+                        key={`edit-${activity.id}`}
+                        mode="edit"
+                        tripId={tripId}
+                        date={activity.date}
+                        order={activity.order}
+                        initialValues={editorDefaults}
+                        existingActivities={selectedActivities.filter(
+                          (item) => item.id !== activity.id
+                        )}
+                        onSubmit={(input) =>
+                          onUpdateActivity(activity.id, input)
+                        }
+                        onCancel={() => setEditingActivity(null)}
+                      />
+                    ) : (
+                      <SortableActivityCard
+                        activity={activity}
+                        index={index}
+                        canEdit={canEdit(activity)}
+                        canAdd={canAdd}
+                        onAddBefore={() => openRelativeAdd(activity, "before")}
+                        onAddAfter={() => openRelativeAdd(activity, "after")}
+                        onEdit={() => {
+                          setAddPlacement(null);
+                          setEditingActivity(activity);
+                        }}
+                        onDelete={() => setDeleteActivity(activity)}
+                      />
+                    )}
+                    {relativeAdd?.position === "after" && (
+                      <InlineActivityEditor
+                        key={`add-after-${activity.id}`}
+                        mode="add"
+                        tripId={tripId}
+                        date={activity.date}
+                        order={relativeAdd.order}
+                        initialValues={editorDefaults}
+                        existingActivities={selectedActivities}
+                        draftId={`after-${activity.id}`}
+                        onSubmit={onAddActivity}
+                        onCancel={() => setAddPlacement(null)}
+                      />
+                    )}
                   </div>
                 );
               })}
             </div>
+          </SortableContext>
+        )}
+      </div>
 
-            {/* Delete confirmation dialog */}
-            <Dialog
-              open={confirmDeleteId !== null}
-              onOpenChange={(open) => {
-                if (!open) setConfirmDeleteId(null);
+      <Dialog
+        open={Boolean(deleteActivity)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteActivity(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Xóa hoạt động?</DialogTitle>
+            <DialogDescription>
+              “{deleteActivity?.title}” sẽ bị xóa vĩnh viễn.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteActivity(null)}>
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!deleteActivity) return;
+                const activity = deleteActivity;
+                setDeleteActivity(null);
+                try {
+                  await onDeleteActivity(activity.id);
+                  toast.success("Đã xóa hoạt động");
+                } catch {
+                  toast.error("Không thể xóa hoạt động");
+                }
               }}
             >
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>Xóa hoạt động?</DialogTitle>
-                  <DialogDescription>
-                    Hành động này không thể hoàn tác. Hoạt động sẽ bị xóa vĩnh
-                    viễn.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter className="gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setConfirmDeleteId(null)}
-                  >
-                    Hủy
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={async () => {
-                      if (!confirmDeleteId) return;
-                      const id = confirmDeleteId;
-                      setConfirmDeleteId(null);
-                      try {
-                        await onDeleteActivity(id);
-                        toast.success("Đã xóa hoạt động");
-                      } catch {
-                        toast.error("Không thể xóa hoạt động");
-                      }
-                    }}
-                  >
-                    Xóa
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              Xóa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            {/* Drag overlay */}
-            <DragOverlay>
-              {draggedActivity && (
-                <div className="w-full max-w-md rounded-xl bg-secondary-800 shadow-xl ring-2 ring-primary-400">
-                  <ActivityRow
-                    activity={draggedActivity}
-                    onEdit={() => {
-                      // noop during drag
-                    }}
-                    onDelete={() => {
-                      // noop during drag
-                    }}
-                    canEdit={false}
-                    isDragging
-                  />
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
-        )}{" "}
-        {/* end !isSharedCollapsed */}
-        {/* ── Personal itinerary block ─────────────────────────────── */}
-        <PersonalItineraryBlock
-          tripId={tripId}
-          days={days}
-          sharedActivitiesByDate={activitiesByDate}
-          isCollapsed={isPersonalCollapsed}
-          onToggleCollapse={togglePersonal}
-        />
-      </div>
-      {/* end left column */}
-
-      {/* ── Right: Map ───────────────────────────────────────────── */}
-      <div className="w-full shrink-0 xl:sticky xl:top-4 xl:w-100 xl:self-start">
-        <div className="mb-2 flex items-center gap-2 rounded-2xl bg-surface-card px-4 py-3 ring-1 ring-black/5">
-          <MapIcon className="h-4 w-4 text-primary-400" />
-          <span className="font-semibold text-on-surface text-sm">
-            Bản đồ lịch trình
-          </span>
-        </div>
-        <MapTab
-          tripId={tripId}
-          days={days}
-          activitiesByDate={activitiesByDate}
-          canEdit={currentUserRole === "owner" || currentUserRole === "editor"}
-          onUpdateActivity={onUpdateActivity}
-        />
-      </div>
-      {/* end right column */}
-
-      {/* ─── Central Activity Dialog (Bugs 5+6) ──────────────────────── */}
-      {activityDialog &&
-        (() => {
-          const isAdd = activityDialog.mode === "add";
-          const editActivity = isAdd ? undefined : activityDialog.activity;
-          const dialogDate = isAdd ? activityDialog.date : editActivity!.date;
-          const dialogPeriod = isAdd
-            ? activityDialog.period
-            : getTimePeriod(editActivity!.startTime);
-          const dialogOrder = isAdd
-            ? activityDialog.order
-            : editActivity!.order;
-          const allForDate: ActivityWithId[] =
-            activitiesByDate[dialogDate] ?? [];
-          return (
-            <ActivityForm
-              open
-              mode={isAdd ? "add" : "edit"}
-              tripId={tripId}
-              date={dialogDate}
-              order={dialogOrder}
-              initialPeriod={dialogPeriod}
-              initialValues={
-                editActivity
-                  ? {
-                      title: editActivity.title,
-                      startTime: editActivity.startTime ?? "",
-                      endTime: editActivity.endTime ?? "",
-                      category: editActivity.category,
-                      location: editActivity.location ?? "",
-                      note: editActivity.note ?? "",
-                      period: dialogPeriod,
-                    }
-                  : undefined
-              }
-              existingActivities={allForDate}
-              editingId={editActivity?.id}
-              onSubmit={
-                isAdd
-                  ? onAddActivity
-                  : async (input) => {
-                      await onUpdateActivity(editActivity!.id, input);
-                    }
-              }
-              onCancel={() => setActivityDialog(null)}
-              onSuccess={() => setActivityDialog(null)}
+      <DragOverlay dropAnimation={{ duration: 180, easing: "ease" }}>
+        {draggedActivity && (
+          <div className="w-[min(34rem,calc(100vw-2rem))]">
+            <ActivityCard
+              activity={draggedActivity}
+              canEdit={false}
+              isDragging
+              onEdit={() => undefined}
+              onDelete={() => undefined}
             />
-          );
-        })()}
-    </div>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   );
 };

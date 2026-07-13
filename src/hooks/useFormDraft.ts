@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseFormDraftResult<T> {
   savedDraft: T | null;
-  saveDraft: (data: T) => void;
+  saveDraft: (data: T, immediately?: boolean) => void;
   clearDraft: () => void;
   hasDraft: boolean;
 }
@@ -34,17 +34,28 @@ export const useFormDraft = <T>(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveDraft = useCallback(
-    (data: T) => {
+    (data: T, immediately = false) => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
+      const persist = () => {
         try {
+          if (JSON.stringify(data) === JSON.stringify(initialValues)) {
+            localStorage.removeItem(key);
+            setSavedDraft(null);
+            return;
+          }
           localStorage.setItem(key, JSON.stringify(data));
+          setSavedDraft(data);
         } catch {
           // Storage full or unavailable — silently ignore
         }
-      }, 500);
+      };
+      if (immediately) {
+        persist();
+      } else {
+        timerRef.current = setTimeout(persist, 500);
+      }
     },
-    [key]
+    [initialValues, key]
   );
 
   const clearDraft = useCallback(() => {

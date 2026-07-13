@@ -54,17 +54,12 @@ export const updateDisplayName = async (
 /**
 /**
  * Deletes a trip document along with all its subcollections.
- * Subcollections: activities, expenses, invitations, personalActivities.
+ * Subcollections: activities, expenses, invitations.
  * Firestore has no server-side cascade-delete from the client SDK, so each
  * subcollection's documents must be fetched and deleted in batches.
  */
 const deleteTripWithSubcollections = async (tripId: string): Promise<void> => {
-  const subcollections = [
-    "activities",
-    "expenses",
-    "invitations",
-    "personalActivities",
-  ];
+  const subcollections = ["activities", "expenses", "invitations"];
 
   for (const sub of subcollections) {
     const snap = await getDocs(collection(db, "trips", tripId, sub));

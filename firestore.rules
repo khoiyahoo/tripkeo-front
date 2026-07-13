@@ -147,28 +147,6 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner';
       }
 
-      // ─── Personal Activities (subcollection) ──────
-      // Only the activity owner (userId field) can read/write their own entries.
-      // They must also be a member of the trip.
-      match /personalActivities/{activityId} {
-        allow read: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && request.auth.uid == resource.data.userId;
-
-        allow create: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && request.auth.uid == request.resource.data.userId;
-
-        allow update: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && request.auth.uid == resource.data.userId
-          && request.auth.uid == request.resource.data.userId;
-
-        allow delete: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && request.auth.uid == resource.data.userId;
-      }
-
       // ─── Settlements (subcollection) ──────────────
       // Track which debts have been marked as paid (isPaid flag).
       // Permission checked in client before write, but security rules still validate:

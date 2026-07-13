@@ -35,7 +35,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useItinerary } from "@/hooks/useItinerary";
 import { useTripMembers } from "@/hooks/useMembers";
-import { usePersonalItinerary } from "@/hooks/usePersonalItinerary";
 import { useTrip } from "@/hooks/useTrip";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -79,7 +78,6 @@ const TripDetailPage = () => {
     handleDeleteActivity,
     handleBatchUpdateOrders,
   } = useItinerary(tripId);
-  const { activities: personalActivities } = usePersonalItinerary(tripId);
   const {
     expenses,
     summary,
@@ -181,16 +179,6 @@ const TripDetailPage = () => {
     {} as Record<string, typeof activities>
   );
 
-  // Group personal activities by date for PDF export
-  const personalActivitiesByDate = personalActivities.reduce(
-    (acc, a) => {
-      if (!acc[a.date]) acc[a.date] = [];
-      acc[a.date].push(a);
-      return acc;
-    },
-    {} as Record<string, typeof personalActivities>
-  );
-
   return (
     <MainLayout currentPath="/trips">
       <div className="space-y-6">
@@ -242,8 +230,10 @@ const TripDetailPage = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-4 left-4 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
+            className="absolute top-4 left-4 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
             onClick={() => window.history.back()}
+            aria-label="Quay lại"
+            title="Quay lại"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -251,8 +241,10 @@ const TripDetailPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-16 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
+              className="absolute top-4 right-16 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
               onClick={() => setIsEditDialogOpen(true)}
+              aria-label="Chỉnh sửa chuyến đi"
+              title="Chỉnh sửa chuyến đi"
             >
               <Pencil className="h-5 w-5" />
             </Button>
@@ -261,12 +253,14 @@ const TripDetailPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 bg-black/20 text-white backdrop-blur-sm hover:bg-error-500/80"
+              className="absolute top-4 right-4 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-error-500/80"
               onClick={async () => {
                 const count = await countPostsByTripId(tripId);
                 setLinkedPostCount(count);
                 setIsDeleteDialogOpen(true);
               }}
+              aria-label="Xóa chuyến đi"
+              title="Xóa chuyến đi"
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -343,16 +337,18 @@ const TripDetailPage = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Sticky zone: tab bar + itinerary export button */}
           <div className="sticky top-0 z-20 -mx-4 bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
               <TabsList className="flex h-auto flex-1 justify-start gap-1 overflow-x-auto bg-transparent p-0">
                 {TABS.map((tab) => (
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
+                    className="group flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
                   >
                     <tab.icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="hidden group-data-[state=active]:inline sm:inline">
+                      {tab.label}
+                    </span>
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -362,7 +358,6 @@ const TripDetailPage = () => {
                   tripMeta={tripMeta as TripMeta}
                   days={days}
                   activitiesByDate={activitiesByDate}
-                  personalActivitiesByDate={personalActivitiesByDate}
                 />
               )}
             </div>
