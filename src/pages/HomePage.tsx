@@ -152,7 +152,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
       <img
         src={trip.coverImage}
         alt={trip.name}
-        className="h-14 w-14 rounded-2xl object-cover"
+        className="h-14 w-14 shrink-0 rounded-2xl object-cover"
       />
       <div className="min-w-0">
         <p className="truncate font-semibold text-white">{trip.name}</p>
@@ -196,7 +196,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
       </div>
     </div>
     <div className="flex items-center gap-3 justify-self-end sm:order-none">
-      <Badge className={getStatusColor(trip.status)}>
+      <Badge className={`shrink-0 ${getStatusColor(trip.status)}`}>
         {getStatusLabel(trip.status)}
       </Badge>
       <ArrowRight className="hidden h-4 w-4 text-secondary-400 sm:block" />
@@ -323,11 +323,11 @@ export default function HomePage() {
 
         <StatCardsSection trips={trips} />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="contents xl:block xl:space-y-6">
-            <Card className="order-2 xl:order-none">
+            <Card className="order-2 min-w-0 xl:order-none">
               <CardHeader className="flex flex-col gap-3 border-outline-variant/70 border-b pb-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <CardTitle className="text-white text-xl">
                     Báo cáo chuyến đi
                   </CardTitle>
@@ -372,7 +372,7 @@ export default function HomePage() {
             </Card>
 
             {pendingInvitations.length > 0 && (
-              <Card className="order-1 xl:order-none">
+              <Card className="order-1 min-w-0 xl:order-none">
                 <CardHeader>
                   <CardTitle className="text-white text-xl">
                     Lời mời đang chờ
