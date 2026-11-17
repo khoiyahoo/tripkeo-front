@@ -873,7 +873,6 @@ export const ItineraryTab = ({
   onDeleteActivity,
   onBatchUpdateOrders,
   currentUserRole,
-  currentUserId,
   ownerName,
 }: ItineraryTabProps) => {
   const [selectedDate, setSelectedDate] = useState(days[0]?.date ?? "");
@@ -919,9 +918,8 @@ export const ItineraryTab = ({
     [activitiesByDate, selectedDay?.date]
   );
   const canAdd = currentUserRole === "owner" || currentUserRole === "editor";
-  const canEdit = (activity: ActivityWithId) =>
-    currentUserRole === "owner" ||
-    (currentUserRole === "editor" && activity.createdBy === currentUserId);
+  // Chủ chuyến và biên tập viên đều được sửa mọi hoạt động
+  const canEdit = (_activity: ActivityWithId) => canAdd;
 
   const resetEditor = () => {
     setAddPlacement(null);

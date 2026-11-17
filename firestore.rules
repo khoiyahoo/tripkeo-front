@@ -90,23 +90,11 @@ service cloud.firestore {
 
         allow update: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && (
-            get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
-            || (
-              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'editor'
-              && resource.data.createdBy == request.auth.uid
-            )
-          );
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'editor'];
 
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && (
-            get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'owner'
-            || (
-              get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role == 'editor'
-              && resource.data.createdBy == request.auth.uid
-            )
-          );
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'editor'];
       }
 
       // ─── Expenses (subcollection) ─────────────────
