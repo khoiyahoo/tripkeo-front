@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Tripkeo",
+    "slug": "tripkeo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tripkeo.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.tripkeo.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-image",
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
+    ],
+    "scheme": "tripkeo",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
