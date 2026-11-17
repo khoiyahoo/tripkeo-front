@@ -1,5 +1,6 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 import {
   signOut as firebaseSignOut,
   GoogleAuthProvider,
@@ -23,7 +24,12 @@ const getGoogleCredential = async () => {
   const appUrl = process.env.EXPO_PUBLIC_APP_URL;
   if (!appUrl) throw new Error("Missing EXPO_PUBLIC_APP_URL");
 
-  const redirectUri = Linking.createURL("auth");
+  // iOS: phiên đăng nhập (ASWebAuthenticationSession) tự bắt scheme quay về nên
+  // không cần app đăng ký scheme — dùng địa chỉ cố định để chạy được cả trong Expo Go
+  // (kể cả khi mở từ EAS Update, nơi link exp:// có dạng khó đoán).
+  // Android: giữ link do Expo tạo (Expo Go dùng exp://, bản APK dùng tripkeo://).
+  const redirectUri =
+    Platform.OS === "ios" ? "tripkeo://auth" : Linking.createURL("auth");
   const authUrl = `${appUrl.replace(/\/$/, "")}/mobile-auth?redirect=${encodeURIComponent(redirectUri)}`;
 
   const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
