@@ -1,8 +1,12 @@
 import { useSearch } from "@tanstack/react-router";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { auth } from "@/lib/firebase";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID as
+  | string
+  | undefined;
 
 const PRIVATE_HOST =
   /^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/;
@@ -23,25 +27,121 @@ const isAllowedRedirect = (value: string): boolean => {
   }
 };
 
+const NONCE_KEY = "tripkeo_mobile_auth_nonce";
+
+const safeStorage = {
+  get: (key: string): string | null => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key: string, value: string): void => {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Storage bị chặn: bỏ qua việc kiểm tra nonce
+    }
+  },
+  remove: (key: string): void => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  },
+};
+
+const randomNonce = (): string => {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+/** Đọc payload của JWT (không xác minh chữ ký — Firebase sẽ xác minh ở app). */
+const decodeJwtPayload = (token: string): { nonce?: string } | null => {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(part)) as { nonce?: string };
+  } catch {
+    return null;
+  }
+};
+
+const goBackToApp = (appRedirect: string, idToken: string): void => {
+  const target = new URL(appRedirect);
+  target.searchParams.set("idToken", idToken);
+  window.location.href = target.toString();
+};
+
 const MobileAuthPage = () => {
   const { redirect } = useSearch({ strict: false }) as { redirect?: string };
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const allowed = !!redirect && isAllowedRedirect(redirect);
 
+  // Google chuyển hướng về trang này kèm #id_token=...&state=<redirect của app>
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const idToken = params.get("id_token");
+    const state = params.get("state");
+    if (!idToken || !state) return;
+
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (!isAllowedRedirect(state)) {
+      setError("Liên kết không hợp lệ. Hãy mở lại từ ứng dụng Tripkeo.");
+      return;
+    }
+    const expectedNonce = safeStorage.get(NONCE_KEY);
+    safeStorage.remove(NONCE_KEY);
+    if (expectedNonce && decodeJwtPayload(idToken)?.nonce !== expectedNonce) {
+      setError("Phiên đăng nhập không hợp lệ. Vui lòng thử lại.");
+      return;
+    }
+    goBackToApp(state, idToken);
+  }, []);
+
+  const signInWithGoogleRedirect = (appRedirect: string): void => {
+    // Đi thẳng tới Google (không qua *.firebaseapp.com) để tránh lỗi sessionStorage
+    // trong trình duyệt xác thực của iOS.
+    const nonce = randomNonce();
+    safeStorage.set(NONCE_KEY, nonce);
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", GOOGLE_CLIENT_ID ?? "");
+    url.searchParams.set(
+      "redirect_uri",
+      `${window.location.origin}/mobile-auth`
+    );
+    url.searchParams.set("response_type", "id_token");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("nonce", nonce);
+    url.searchParams.set("state", appRedirect);
+    url.searchParams.set("prompt", "select_account");
+    window.location.href = url.toString();
+  };
+
   const onSignIn = (): void => {
     if (!redirect || !allowed) return;
-    setIsLoading(true);
     setError(null);
 
+    if (GOOGLE_CLIENT_ID) {
+      setIsLoading(true);
+      signInWithGoogleRedirect(redirect);
+      return;
+    }
+
+    // Dự phòng khi chưa cấu hình VITE_GOOGLE_WEB_CLIENT_ID: popup của Firebase
+    setIsLoading(true);
     signInWithPopup(auth, new GoogleAuthProvider())
       .then((result) => {
         const idToken =
           GoogleAuthProvider.credentialFromResult(result)?.idToken;
         if (!idToken) throw new Error("No ID token");
-        const target = new URL(redirect);
-        target.searchParams.set("idToken", idToken);
-        window.location.href = target.toString();
+        goBackToApp(redirect, idToken);
       })
       .catch(() => {
         setError("Đăng nhập thất bại. Vui lòng thử lại.");
