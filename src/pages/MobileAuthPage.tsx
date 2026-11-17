@@ -11,16 +11,28 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID as
 const PRIVATE_HOST =
   /^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/;
 
+// ID project Expo (EAS) của Tripkeo — giá trị công khai trong app.json.
+const EXPO_PROJECT_ID = "9ebaa894-022b-4262-8df0-43a9a9ee0813";
+
 /**
- * Chỉ cho phép redirect về app Tripkeo: scheme `tripkeo://` (bản build) hoặc
- * `exp://` tới địa chỉ mạng nội bộ (Expo Go khi phát triển). Chặn mọi đích khác
- * để ID token không bị gửi tới nơi lạ.
+ * Chỉ cho phép redirect về app Tripkeo:
+ * - `tripkeo://` (bản build APK/IPA);
+ * - `exp://` tới địa chỉ mạng nội bộ (Expo Go chạy `expo start`);
+ * - `exp://u.expo.dev/<project id của Tripkeo>/...` (Expo Go mở bản EAS Update).
+ * Chặn mọi đích khác để ID token không bị gửi tới nơi lạ (kể cả project Expo khác).
  */
 const isAllowedRedirect = (value: string): boolean => {
   try {
     const url = new URL(value);
     if (url.protocol === "tripkeo:") return true;
-    if (url.protocol === "exp:") return PRIVATE_HOST.test(url.hostname);
+    if (url.protocol === "exp:") {
+      if (PRIVATE_HOST.test(url.hostname)) return true;
+      return (
+        url.hostname === "u.expo.dev" &&
+        (url.pathname === `/${EXPO_PROJECT_ID}` ||
+          url.pathname.startsWith(`/${EXPO_PROJECT_ID}/`))
+      );
+    }
     return false;
   } catch {
     return false;
