@@ -305,9 +305,10 @@ h2 {
   }
 }
 
-/* Safari iOS: 100vh lớn hơn vùng nhìn thấy (thanh địa chỉ), dùng dvh khi trình duyệt hỗ trợ. */
-@supports (min-height: 100dvh) {
+/* Safari iOS: 100vh lớn hơn vùng nhìn thấy (thanh địa chỉ). Dùng svh (cố định) chứ không dùng dvh:
+   dvh đổi giá trị mỗi khi thanh địa chỉ co giãn lúc cuộn nên làm layout tính lại và giật. */
+@supports (min-height: 100svh) {
   body {
-    min-height: 100dvh;
+    min-height: 100svh;
   }
 }

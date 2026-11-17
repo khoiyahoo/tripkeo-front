@@ -162,7 +162,7 @@ const MobileAuthPage = () => {
   };
 
   return (
-    <section className="flex min-h-dvh items-center justify-center bg-surface p-6">
+    <section className="flex min-h-svh items-center justify-center bg-surface p-6">
       <div className="w-full max-w-sm space-y-4 text-center">
         <h1 className="font-bold font-heading text-2xl">Đăng nhập Tripkeo</h1>
         {allowed ? (

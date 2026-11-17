@@ -339,9 +339,9 @@ const TripDetailPage = () => {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Sticky zone: tab bar + itinerary export button */}
-          <div className="sticky top-0 z-20 -mx-4 transform-gpu bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="sticky top-0 z-20 -mx-4 bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <TabsList className="flex h-auto flex-1 justify-start gap-1 overflow-x-auto bg-transparent p-0">
+              <TabsList className="flex h-auto flex-1 justify-start gap-1 bg-transparent p-0 sm:overflow-x-auto">
                 {TABS.map((tab) => (
                   <TabsTrigger
                     key={tab.value}

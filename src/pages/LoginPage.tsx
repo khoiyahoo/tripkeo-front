@@ -18,7 +18,7 @@ const LoginPage = () => {
   }, [user, navigate]);
 
   return (
-    <section className="tripkeo-auth-bg relative flex min-h-dvh items-center justify-center overflow-hidden p-6">
+    <section className="tripkeo-auth-bg relative flex min-h-svh items-center justify-center overflow-hidden p-6">
       <div className="absolute inset-0 bg-primary-950/10" />
 
       <div className="relative z-10 flex w-full max-w-5xl items-center gap-16">
