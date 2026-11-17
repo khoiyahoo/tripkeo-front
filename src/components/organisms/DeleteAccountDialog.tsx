@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import {
   deleteFirebaseAccount,
   reauthenticateWithGoogle,
@@ -37,10 +38,13 @@ export const DeleteAccountDialog = ({
 
     try {
       // Step 1: Clean up Firestore data first (while auth is still valid)
-      await deleteUserData(user.uid, user.email ?? "");
+      await runBlocking(
+        () => deleteUserData(user.uid, user.email ?? ""),
+        LONG_TIMEOUT_MS
+      );
 
       // Step 2: Delete Firebase Auth account
-      await deleteFirebaseAccount();
+      await runBlocking(() => deleteFirebaseAccount());
 
       toast.success("Tài khoản đã được xóa thành công");
       navigate({ to: "/" });
@@ -54,7 +58,7 @@ export const DeleteAccountDialog = ({
         // Re-authenticate then retry
         try {
           await reauthenticateWithGoogle();
-          await deleteFirebaseAccount();
+          await runBlocking(() => deleteFirebaseAccount());
           toast.success("Tài khoản đã được xóa thành công");
           navigate({ to: "/" });
         } catch {

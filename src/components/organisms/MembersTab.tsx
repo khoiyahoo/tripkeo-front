@@ -581,8 +581,8 @@ export const MembersTab = ({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activeEntries.map(([uid, member]) => (
               <Card key={uid} className="border-none shadow-sm">
-                <CardContent className="flex items-center gap-4 p-4">
-                  <Avatar className="h-10 w-10">
+                <CardContent className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                  <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage
                       src={member.photoURL}
                       alt={member.displayName}

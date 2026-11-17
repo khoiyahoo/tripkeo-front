@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { MainLayout } from "@/layouts/MainLayout";
+import { runBlocking } from "@/lib/blocking";
 import { auth } from "@/lib/firebase";
 import { linkWithGoogle, unlinkFromGoogle } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
@@ -54,7 +55,7 @@ const SettingsPage = () => {
       return;
     }
     setIsLinkingGoogle(true);
-    unlinkFromGoogle()
+    runBlocking(() => unlinkFromGoogle())
       .then(() => {
         refreshUser();
         toast.success("Đã ngắt kết nối tài khoản Google");

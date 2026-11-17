@@ -243,7 +243,7 @@ export const ExpensesTab = ({
                   <div
                     key={expense.id}
                     className={cn(
-                      "group flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50",
+                      "group flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl p-3 transition-colors hover:bg-surface-dim/50 sm:flex-nowrap",
                       isEditing &&
                         "bg-primary-50 text-primary-700 ring-1 ring-primary-200"
                     )}
@@ -256,7 +256,7 @@ export const ExpensesTab = ({
                     >
                       <Receipt className={cn("h-4 w-4", config.color)} />
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-0">
                       <p className="truncate font-medium text-on-surface-variant text-sm">
                         {expense.description}
                       </p>
@@ -270,7 +270,7 @@ export const ExpensesTab = ({
                       {formatCurrency(expense.amount)}
                     </span>
                     {canEdit && (
-                      <div className="flex shrink-0 gap-0.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                      <div className="flex shrink-0 basis-full justify-end gap-0.5 transition-opacity sm:basis-auto sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon"

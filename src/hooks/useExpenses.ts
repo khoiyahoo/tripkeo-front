@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import {
   calculateBalances,
   calculateDebts,
@@ -104,8 +105,8 @@ export const useExpenses = (
     debts,
     isLoading,
     error,
-    handleAddExpense,
-    handleUpdateExpense,
-    handleDeleteExpense,
+    handleAddExpense: blocking(handleAddExpense),
+    handleUpdateExpense: blocking(handleUpdateExpense),
+    handleDeleteExpense: blocking(handleDeleteExpense),
   };
 };

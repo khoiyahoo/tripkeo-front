@@ -47,14 +47,14 @@ const TripCardItem = ({
   onClick: () => void;
 }) => (
   <Card
-    className="group relative cursor-pointer overflow-hidden rounded-md border-none"
+    className="group relative cursor-pointer overflow-hidden rounded-2xl border-none"
     onClick={onClick}
   >
     <div className="relative h-42 overflow-hidden">
       <img
         src={trip.coverImage}
         alt={trip.name}
-        className="h-full w-full rounded-md object-cover transition-transform"
+        className="h-full w-full object-cover transition-transform"
       />
       <Badge
         className={`absolute top-3 right-3 ${getStatusColor(trip.status)}`}
@@ -62,12 +62,10 @@ const TripCardItem = ({
         {getStatusLabel(trip.status)}
       </Badge>
     </div>
-    <div className="absolute top-1/2 -left-4.5 z-2 h-5 w-8.5 rounded-[20px] bg-surface"></div>
-    <div className="absolute top-1/2 -right-4.5 z-2 h-5 w-8.5 rounded-[20px] bg-surface"></div>
-    <CardContent className="p-2">
-      <h3 className="truncate pt-2 font-semibold text-on-surface">
-        {trip.name}
-      </h3>
+    <div className="absolute top-1/2 -left-4.5 z-2 hidden h-5 w-8.5 rounded-[20px] bg-surface sm:block"></div>
+    <div className="absolute top-1/2 -right-4.5 z-2 hidden h-5 w-8.5 rounded-[20px] bg-surface sm:block"></div>
+    <CardContent className="p-3">
+      <h3 className="truncate font-semibold text-on-surface">{trip.name}</h3>
       <div className="mt-2 flex flex-col gap-1 text-on-surface-variant text-sm">
         <span className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5" />
@@ -177,7 +175,7 @@ export default function TripsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="font-bold text-2xl text-on-surface">Chuyến đi</h1>
-          <Button onClick={handleCreateTrip} className="hidden sm:flex">
+          <Button onClick={handleCreateTrip} className="flex">
             <Plus className="mr-2 h-4 w-4" />
             Tạo chuyến đi
           </Button>
@@ -186,7 +184,7 @@ export default function TripsPage() {
         {/* Filter bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           {/* Date range */}
-          <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="hidden w-full items-center gap-2 sm:flex sm:w-auto">
             <DatePicker
               value={fromDate}
               onChange={setFromDate}
@@ -205,15 +203,15 @@ export default function TripsPage() {
           </div>
 
           {/* Status tabs */}
-          <div className="flex gap-1 rounded-lg bg-surface-dim p-1">
+          <div className="flex w-full gap-1 rounded-lg bg-surface-dim p-1 sm:w-auto">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setStatusFilter(tab.value)}
-                className={`cursor-pointer rounded-md px-3 py-1.5 font-medium text-sm transition-colors ${
+                className={`flex-1 cursor-pointer rounded-md px-3 py-1.5 text-center font-medium text-sm transition-colors sm:flex-none ${
                   statusFilter === tab.value
-                    ? "bg-primary-500 text-on-surface shadow-sm"
+                    ? "bg-primary-500 text-white shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
@@ -254,15 +252,6 @@ export default function TripsPage() {
           <EmptyState onCreateTrip={handleCreateTrip} />
         )}
       </div>
-
-      {/* Mobile FAB */}
-      <Button
-        onClick={handleCreateTrip}
-        size="icon"
-        className="fixed right-6 bottom-24 z-50 h-14 w-14 rounded-full shadow-lg sm:hidden"
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
     </MainLayout>
   );
 }

@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { MainLayout } from "@/layouts/MainLayout";
+import { runBlocking } from "@/lib/blocking";
 import { auth } from "@/lib/firebase";
 import { signOut } from "@/services/authService";
 import { updateDisplayName } from "@/services/userService";
@@ -62,7 +63,7 @@ const ProfilePage = () => {
     if (!trimmed || !user) return;
     setIsSaving(true);
     try {
-      await updateDisplayName(user.uid, trimmed);
+      await runBlocking(() => updateDisplayName(user.uid, trimmed));
       // Refresh auth store with updated currentUser
       if (auth.currentUser) setUser(auth.currentUser);
       toast.success("Đã cập nhật tên");
@@ -201,6 +202,16 @@ const ProfilePage = () => {
           >
             <Settings className="h-5 w-5 text-on-surface-variant" />
             <span className="flex-1">Cài đặt</span>
+            <ChevronRight className="h-4 w-4 text-on-surface-variant" />
+          </button>
+          <div className="h-px bg-outline-variant" />
+          <button
+            className="flex w-full items-center gap-3 px-4 py-4 text-left text-on-surface hover:bg-surface-dim"
+            onClick={() => navigate({ to: "/friends" })}
+            type="button"
+          >
+            <Users className="h-5 w-5 text-on-surface-variant" />
+            <span className="flex-1">Bạn bè</span>
             <ChevronRight className="h-4 w-4 text-on-surface-variant" />
           </button>
           <div className="h-px bg-outline-variant" />

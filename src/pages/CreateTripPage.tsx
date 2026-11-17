@@ -280,7 +280,7 @@ const CreateTripPage = () => {
         <StepIndicator currentStep={currentStep} />
 
         <Card className="border-none shadow-sm">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             {currentStep === 1 && (
               <div className="space-y-5">
                 <div>
@@ -308,7 +308,7 @@ const CreateTripPage = () => {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="startDate">Ngày bắt đầu *</Label>
                     <div className="mt-1.5">

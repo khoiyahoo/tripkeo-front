@@ -222,16 +222,35 @@ export const BalanceTab = ({
           {adjustedBalances.map((b) => (
             <div
               key={b.name}
-              className="flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50"
+              className="flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-surface-dim/50"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 font-semibold text-primary-800 text-sm">
                 {b.name[0]?.toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-on-surface text-sm">
-                  {b.name}
-                </p>
-                <p className="text-on-surface-variant text-xs">
+                {/* Tên và số dư cùng một hàng; dòng chi tiết xuống dưới chiếm trọn chiều ngang */}
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="min-w-0 truncate font-medium text-on-surface text-sm">
+                    {b.name}
+                  </p>
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold text-sm",
+                      b.net > 0.5
+                        ? "text-success-600"
+                        : b.net < -0.5
+                          ? "text-error-600"
+                          : "text-on-surface-variant"
+                    )}
+                  >
+                    {b.net > 0.5
+                      ? `+${formatCurrency(Math.round(b.net))}`
+                      : b.net < -0.5
+                        ? `−${formatCurrency(Math.round(Math.abs(b.net)))}`
+                        : "0đ"}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-on-surface-variant text-xs">
                   Đã trả {formatCurrency(b.totalPaid)} · Phần chịu{" "}
                   {formatCurrency(b.totalOwed)}
                   {paymentNotes.get(b.name) && (
@@ -241,22 +260,6 @@ export const BalanceTab = ({
                   )}
                 </p>
               </div>
-              <span
-                className={cn(
-                  "shrink-0 font-semibold text-sm",
-                  b.net > 0.5
-                    ? "text-success-600"
-                    : b.net < -0.5
-                      ? "text-error-600"
-                      : "text-on-surface-variant"
-                )}
-              >
-                {b.net > 0.5
-                  ? `+${formatCurrency(Math.round(b.net))}`
-                  : b.net < -0.5
-                    ? `−${formatCurrency(Math.round(Math.abs(b.net)))}`
-                    : "0đ"}
-              </span>
             </div>
           ))}
           {adjustedBalances.length === 0 && (
@@ -277,45 +280,49 @@ export const BalanceTab = ({
             {settledDebts.map((d) => (
               <div
                 key={`${d.fromName}-${d.toName}`}
-                className="flex items-center gap-3 rounded-xl border border-outline-variant p-3"
+                className="flex flex-col gap-3 rounded-xl border border-outline-variant p-3 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-error-100 font-semibold text-error-700 text-xs">
-                    {d.fromName[0]?.toUpperCase()}
+                <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-error-100 font-semibold text-error-700 text-xs">
+                      {d.fromName[0]?.toUpperCase()}
+                    </div>
+                    <span className="truncate font-medium text-error-600 text-sm">
+                      {d.fromName}
+                    </span>
                   </div>
-                  <span className="max-w-24 font-medium text-error-600 text-sm max-lg:truncate lg:max-w-48">
-                    {d.fromName}
-                  </span>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-on-surface-variant" />
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-100 font-semibold text-success-700 text-xs">
-                    {d.toName[0]?.toUpperCase()}
+                  <ArrowRight className="h-4 w-4 shrink-0 text-on-surface-variant" />
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-100 font-semibold text-success-700 text-xs">
+                      {d.toName[0]?.toUpperCase()}
+                    </div>
+                    <span className="truncate font-medium text-sm text-success-600">
+                      {d.toName}
+                    </span>
                   </div>
-                  <span className="max-w-24 font-medium text-sm text-success-600 max-lg:truncate lg:max-w-48">
-                    {d.toName}
-                  </span>
                 </div>
-                <span className="font-bold text-on-surface text-sm">
-                  {formatCurrency(d.amount)}
-                </span>
-                <DebtPaymentButton
-                  onClick={() => {
-                    if (!canTogglePayment) {
-                      toast.error(
-                        "Chỉ chủ sở hữu hoặc thủ quỹ mới có quyền cập nhật trạng thái thanh toán"
-                      );
-                      return;
+                <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                  <span className="font-bold text-on-surface text-sm">
+                    {formatCurrency(d.amount)}
+                  </span>
+                  <DebtPaymentButton
+                    onClick={() => {
+                      if (!canTogglePayment) {
+                        toast.error(
+                          "Chỉ chủ sở hữu hoặc thủ quỹ mới có quyền cập nhật trạng thái thanh toán"
+                        );
+                        return;
+                      }
+                      handleOpenPaymentModal(d.fromName, d.toName, d.amount);
+                    }}
+                    isPaid={
+                      settlementStatuses.get(`${d.fromName}-${d.toName}`)
+                        ?.isPaid || false
                     }
-                    handleOpenPaymentModal(d.fromName, d.toName, d.amount);
-                  }}
-                  isPaid={
-                    settlementStatuses.get(`${d.fromName}-${d.toName}`)
-                      ?.isPaid || false
-                  }
-                  isLoading={isTogglingSettlement}
-                  hasPermission={canTogglePayment}
-                />
+                    isLoading={isTogglingSettlement}
+                    hasPermission={canTogglePayment}
+                  />
+                </div>
               </div>
             ))}
           </CardContent>

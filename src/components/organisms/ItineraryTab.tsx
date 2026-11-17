@@ -24,9 +24,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  ArrowDown,
-  ArrowUp,
   AlertTriangle,
+  ArrowUpDown,
+  Check,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -54,12 +54,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -78,7 +72,6 @@ import type { TimelinePeriod } from "@/utils/itineraryTimeline";
 import {
   buildTimelineMoveUpdates,
   findActivitiesAtTime,
-  getRelativeActivityTime,
   getSuggestedNewActivityTime,
   getTimelinePeriod,
   sortTimelineActivities,
@@ -549,28 +542,25 @@ const InlineActivityEditor = ({
 const ActivityCard = ({
   activity,
   canEdit,
-  canAdd,
+  compact,
   isDragging,
   dragHandle,
   onEdit,
   onDelete,
-  onAddBefore,
-  onAddAfter,
 }: {
   activity: ActivityWithId;
   canEdit: boolean;
-  canAdd?: boolean;
+  /** Điện thoại, chế độ sắp xếp: chỉ giữ tay cầm, biểu tượng, tên và giờ (giống app) */
+  compact?: boolean;
   isDragging?: boolean;
   dragHandle?: ReactNode;
   onEdit: () => void;
   onDelete: () => void;
-  onAddBefore?: () => void;
-  onAddAfter?: () => void;
 }) => {
   const category = ACTIVITY_TYPE_CONFIG[activity.category];
   return (
     <article
-      onClick={canEdit ? onEdit : undefined}
+      onClick={canEdit && !compact ? onEdit : undefined}
       className={cn(
         "group relative rounded-2xl border border-black/5 bg-surface-card p-3 shadow-sm transition-[box-shadow,border-color] sm:p-4",
         canEdit && "cursor-pointer hover:border-primary-200 hover:shadow-md",
@@ -578,7 +568,7 @@ const ActivityCard = ({
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex w-14 shrink-0 flex-col pt-0.5 font-mono">
+        <div className="hidden w-14 shrink-0 flex-col pt-0.5 font-mono sm:flex">
           <span className="font-semibold text-on-surface text-sm">
             {activity.startTime ?? "—:—"}
           </span>
@@ -588,8 +578,17 @@ const ActivityCard = ({
             </span>
           )}
         </div>
-        <div className="relative flex self-stretch">
+        <div className="relative hidden self-stretch sm:flex">
           <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-primary-500 ring-4 ring-primary-100" />
+        </div>
+        {/* Điện thoại: biểu tượng loại hoạt động như app, thay cho cột giờ + chấm */}
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg sm:hidden",
+            category.bgColor
+          )}
+        >
+          {category.icon}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -600,9 +599,14 @@ const ActivityCard = ({
                   {activity.title}
                 </h4>
               </div>
+              <p className="mt-0.5 text-on-surface-variant text-xs sm:hidden">
+                {activity.startTime ?? "—:—"}
+                {activity.endTime ? ` – ${activity.endTime}` : ""} ·{" "}
+                {category.label}
+              </p>
               <span
                 className={cn(
-                  "mt-1 inline-flex rounded-full px-2 py-0.5 text-xs",
+                  "mt-1 hidden rounded-full px-2 py-0.5 text-xs sm:inline-flex",
                   category.bgColor,
                   category.color
                 )}
@@ -610,53 +614,13 @@ const ActivityCard = ({
                 {category.label}
               </span>
             </div>
-            {(canAdd || canEdit) && (
-              <div className="flex shrink-0 gap-1">
-                {canAdd && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={(event) => event.stopPropagation()}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl text-primary-500 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                        aria-label={`Thêm hoạt động gần ${activity.title}`}
-                        title="Thêm hoạt động gần đây"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="min-w-56"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <DropdownMenuItem
-                        className="min-h-11 cursor-pointer focus:text-on-surface"
-                        onSelect={onAddBefore}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                        <span className="flex flex-col">
-                          <span>Thêm phía trên</span>
-                          <span className="text-on-surface-variant text-xs">
-                            Gợi ý -15 phút
-                          </span>
-                        </span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="min-h-11 cursor-pointer focus:text-on-surface"
-                        onSelect={onAddAfter}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                        <span className="flex flex-col">
-                          <span>Thêm phía dưới</span>
-                          <span className="text-on-surface-variant text-xs">
-                            Gợi ý +15 phút
-                          </span>
-                        </span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {canEdit && (
+              <div
+                className={cn(
+                  "flex shrink-0 gap-0.5 sm:gap-1",
+                  compact && "hidden sm:flex"
                 )}
+              >
                 {canEdit && (
                   <>
                     <button
@@ -665,7 +629,7 @@ const ActivityCard = ({
                         event.stopPropagation();
                         onEdit();
                       }}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl text-on-surface-variant transition-colors hover:bg-surface-dim hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-on-surface-variant transition-colors hover:bg-surface-dim hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-11 sm:w-11"
                       aria-label={`Chỉnh sửa ${activity.title}`}
                       title="Chỉnh sửa"
                     >
@@ -677,7 +641,7 @@ const ActivityCard = ({
                         event.stopPropagation();
                         onDelete();
                       }}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl text-error-500 transition-colors hover:bg-error-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-400"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-error-500 transition-colors hover:bg-error-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-400 sm:h-11 sm:w-11"
                       aria-label={`Xóa ${activity.title}`}
                       title="Xóa"
                     >
@@ -688,36 +652,38 @@ const ActivityCard = ({
               </div>
             )}
           </div>
-          {(activity.location || activity.mapsUrl) && (
-            <div className="mt-2 flex min-w-0 items-center gap-1.5 text-on-surface-variant text-sm">
-              <MapPin className="h-4 w-4 shrink-0" />
-              {activity.location && (
-                <span className="truncate">{activity.location}</span>
-              )}
-              {activity.mapsUrl && (
-                <a
-                  href={activity.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-surface-dim"
-                  aria-label="Mở địa điểm"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-            </div>
-          )}
-          {activity.note && (
-            <p className="mt-2 text-on-surface-variant text-sm">
-              {activity.note}
-            </p>
-          )}
-          {activity.cost !== undefined && activity.cost > 0 && (
-            <p className="mt-2 font-medium text-primary-700 text-sm">
-              {formatCurrency(activity.cost)}
-            </p>
-          )}
+          <div className={cn(compact && "hidden sm:block")}>
+            {(activity.location || activity.mapsUrl) && (
+              <div className="mt-2 flex min-w-0 items-center gap-1.5 text-on-surface-variant text-sm">
+                <MapPin className="h-4 w-4 shrink-0" />
+                {activity.location && (
+                  <span className="truncate">{activity.location}</span>
+                )}
+                {activity.mapsUrl && (
+                  <a
+                    href={activity.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-surface-dim"
+                    aria-label="Mở địa điểm"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
+            {activity.note && (
+              <p className="mt-2 text-on-surface-variant text-sm">
+                {activity.note}
+              </p>
+            )}
+            {activity.cost !== undefined && activity.cost > 0 && (
+              <p className="mt-2 font-medium text-primary-400 text-sm">
+                {formatCurrency(activity.cost)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </article>
@@ -728,20 +694,17 @@ const SortableActivityCard = ({
   activity,
   index,
   canEdit,
-  canAdd,
+  reordering,
   onEdit,
   onDelete,
-  onAddBefore,
-  onAddAfter,
 }: {
   activity: ActivityWithId;
   index: number;
   canEdit: boolean;
-  canAdd: boolean;
+  /** Điện thoại: chỉ hiện tay cầm kéo khi bật chế độ "Sắp xếp thứ tự" (giống app) */
+  reordering: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onAddBefore: () => void;
-  onAddAfter: () => void;
 }) => {
   const {
     attributes,
@@ -768,18 +731,19 @@ const SortableActivityCard = ({
       <ActivityCard
         activity={activity}
         canEdit={canEdit}
-        canAdd={canAdd}
+        compact={reordering}
         onEdit={onEdit}
         onDelete={onDelete}
-        onAddBefore={onAddBefore}
-        onAddAfter={onAddAfter}
         dragHandle={
           canEdit ? (
             <button
               ref={setActivatorNodeRef}
               type="button"
               onClick={(event) => event.stopPropagation()}
-              className="-ml-2 flex h-11 w-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 active:cursor-grabbing"
+              className={cn(
+                "-ml-1 h-8 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 active:cursor-grabbing sm:-ml-2 sm:flex sm:h-11 sm:w-11",
+                reordering ? "flex" : "hidden"
+              )}
               aria-label={`Kéo để di chuyển ${activity.title}`}
               title="Kéo để di chuyển"
               {...attributes}
@@ -914,6 +878,7 @@ export const ItineraryTab = ({
 }: ItineraryTabProps) => {
   const [selectedDate, setSelectedDate] = useState(days[0]?.date ?? "");
   const [addPlacement, setAddPlacement] = useState<AddPlacement | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [editingActivity, setEditingActivity] = useState<ActivityWithId | null>(
     null
   );
@@ -961,20 +926,6 @@ export const ItineraryTab = ({
   const resetEditor = () => {
     setAddPlacement(null);
     setEditingActivity(null);
-  };
-
-  const openRelativeAdd = (
-    activity: ActivityWithId,
-    position: "before" | "after"
-  ) => {
-    setEditingActivity(null);
-    setAddPlacement({
-      kind: "relative",
-      activityId: activity.id,
-      position,
-      startTime: getRelativeActivityTime(activity.startTime, position),
-      order: activity.order + (position === "before" ? -0.5 : 0.5),
-    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -1078,7 +1029,7 @@ export const ItineraryTab = ({
       onDragCancel={() => setDraggedActivity(null)}
     >
       <div className="space-y-4 pb-6">
-        <div className="sticky top-13 z-10 -mx-4 border-black/5 border-b bg-surface/95 px-4 py-3 backdrop-blur sm:top-14 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="sticky top-14 z-10 -mx-4 border-black/5 border-b bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
             {days.map((day) => (
               <DayChip
@@ -1105,15 +1056,38 @@ export const ItineraryTab = ({
               Ngày {selectedDay?.dayNumber ?? "—"}
             </h2>
           </div>
-          {canAdd && !addPlacement && !editingActivity && selectedDay && (
-            <Button
-              onClick={() => setAddPlacement({ kind: "end" })}
-              className="h-11 gap-2 bg-primary-500 text-white"
-            >
-              <Plus className="h-4 w-4" />
-              Thêm hoạt động
-            </Button>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {canAdd && selectedActivities.length > 1 && (
+              <Button
+                variant="outline"
+                onClick={() => setReordering((value) => !value)}
+                className={cn(
+                  "h-11 gap-2 sm:hidden",
+                  reordering && "border-primary-500 text-primary-500"
+                )}
+              >
+                {reordering ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <ArrowUpDown className="h-4 w-4" />
+                )}
+                {reordering ? "Xong" : "Sắp xếp thứ tự"}
+              </Button>
+            )}
+            {canAdd &&
+              !reordering &&
+              !addPlacement &&
+              !editingActivity &&
+              selectedDay && (
+                <Button
+                  onClick={() => setAddPlacement({ kind: "end" })}
+                  className="h-11 gap-2 bg-primary-500 text-white"
+                >
+                  <Plus className="h-4 w-4" />
+                  Thêm hoạt động
+                </Button>
+              )}
+          </div>
         </header>
 
         {(currentUserRole === "member" || currentUserRole === "treasurer") && (
@@ -1168,7 +1142,12 @@ export const ItineraryTab = ({
                 return (
                   <div key={activity.id} className="space-y-2">
                     {showPeriod && (
-                      <div className="flex items-center gap-3 pt-2">
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 pt-2",
+                          reordering && "hidden sm:flex"
+                        )}
+                      >
                         <span className="shrink-0 font-medium text-on-surface-variant text-xs uppercase tracking-wide">
                           {PERIOD_LABELS[period]}
                         </span>
@@ -1210,9 +1189,7 @@ export const ItineraryTab = ({
                         activity={activity}
                         index={index}
                         canEdit={canEdit(activity)}
-                        canAdd={canAdd}
-                        onAddBefore={() => openRelativeAdd(activity, "before")}
-                        onAddAfter={() => openRelativeAdd(activity, "after")}
+                        reordering={reordering}
                         onEdit={() => {
                           setAddPlacement(null);
                           setEditingActivity(activity);

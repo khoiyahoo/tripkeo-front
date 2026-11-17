@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import {
   createTrip,
   deleteTrip,
@@ -81,8 +82,8 @@ export const useTrips = (): UseTripsResult => {
     trips,
     isLoading,
     error,
-    handleCreateTrip,
-    handleDeleteTrip,
-    handleUpdateTrip,
+    handleCreateTrip: blocking(handleCreateTrip, 45_000),
+    handleDeleteTrip: blocking(handleDeleteTrip),
+    handleUpdateTrip: blocking(handleUpdateTrip),
   };
 };

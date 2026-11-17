@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { uploadImages } from "@/services/cloudinaryService";
 import { createPost, updatePost } from "@/services/communityService";
 import { fetchExpensesForTrip } from "@/services/expenseService";
@@ -314,50 +315,53 @@ export const CreatePostDialog = ({
 
     setIsSubmitting(true);
     try {
-      const newImageUrls = images.length > 0 ? await uploadImages(images) : [];
-      const allImageUrls = [...existingImageUrls, ...newImageUrls];
+      await runBlocking(async () => {
+        const newImageUrls =
+          images.length > 0 ? await uploadImages(images) : [];
+        const allImageUrls = [...existingImageUrls, ...newImageUrls];
 
-      if (isEditMode && editPost) {
-        const input: UpdatePostInput = {
-          title: title.trim(),
-          content: content.trim(),
-          tripId: actualTripId || undefined,
-          destination:
-            trips.find((t) => t.id === actualTripId)?.destination ??
-            editPost.destination,
-          region,
-          imageUrls: allImageUrls,
-          includeItinerary,
-          includeExpenses,
-          itinerarySnapshot: await buildItinerarySnapshot(),
-          expenseSnapshot: await buildExpenseSnapshot(),
-        };
-        await updatePost(editPost.id, input);
-        toast.success("Đã cập nhật bài viết!");
-        onSuccess(editPost.id);
-      } else {
-        const input: CreatePostInput = {
-          title: title.trim(),
-          content: content.trim(),
-          tripId: actualTripId || undefined,
-          destination:
-            trips.find((t) => t.id === actualTripId)?.destination ?? "",
-          region,
-          imageUrls: allImageUrls,
-          includeItinerary,
-          includeExpenses,
-          itinerarySnapshot: await buildItinerarySnapshot(),
-          expenseSnapshot: await buildExpenseSnapshot(),
-        };
-        const postId = await createPost(
-          input,
-          user.uid,
-          user.displayName ?? "Ẩn danh",
-          user.photoURL ?? ""
-        );
-        toast.success("Đã đăng bài viết!");
-        onSuccess(postId);
-      }
+        if (isEditMode && editPost) {
+          const input: UpdatePostInput = {
+            title: title.trim(),
+            content: content.trim(),
+            tripId: actualTripId || undefined,
+            destination:
+              trips.find((t) => t.id === actualTripId)?.destination ??
+              editPost.destination,
+            region,
+            imageUrls: allImageUrls,
+            includeItinerary,
+            includeExpenses,
+            itinerarySnapshot: await buildItinerarySnapshot(),
+            expenseSnapshot: await buildExpenseSnapshot(),
+          };
+          await updatePost(editPost.id, input);
+          toast.success("Đã cập nhật bài viết!");
+          onSuccess(editPost.id);
+        } else {
+          const input: CreatePostInput = {
+            title: title.trim(),
+            content: content.trim(),
+            tripId: actualTripId || undefined,
+            destination:
+              trips.find((t) => t.id === actualTripId)?.destination ?? "",
+            region,
+            imageUrls: allImageUrls,
+            includeItinerary,
+            includeExpenses,
+            itinerarySnapshot: await buildItinerarySnapshot(),
+            expenseSnapshot: await buildExpenseSnapshot(),
+          };
+          const postId = await createPost(
+            input,
+            user.uid,
+            user.displayName ?? "Ẩn danh",
+            user.photoURL ?? ""
+          );
+          toast.success("Đã đăng bài viết!");
+          onSuccess(postId);
+        }
+      }, LONG_TIMEOUT_MS);
       onClose();
     } catch (err) {
       toast.error(

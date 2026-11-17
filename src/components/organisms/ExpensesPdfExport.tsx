@@ -3,6 +3,7 @@ import { Download, Eye, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PdfHtmlPreview } from "@/components/molecules/PdfHtmlPreview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,6 +14,8 @@ import {
 import type { ExpenseSummary } from "@/services/expenseService";
 import type { ExpensePdfMeta } from "@/utils/expensePdf";
 import { ExpensePdfDocument } from "@/utils/expensePdf";
+import { buildExpensesHtml } from "@/utils/pdfHtml";
+import { isSmallScreen } from "@/utils/pdfPreview";
 
 import type {
   DebtSettlement,
@@ -84,16 +87,18 @@ export const ExpensesPdfExport = ({
     }
   };
 
+  const handlePreview = () => {
+    if (guardEmpty()) return;
+    setIsPreviewOpen(true);
+  };
+
   return (
     <>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            if (guardEmpty()) return;
-            setIsPreviewOpen(true);
-          }}
+          onClick={handlePreview}
           className="gap-1.5"
         >
           <Eye className="h-3.5 w-3.5" />
@@ -116,7 +121,7 @@ export const ExpensesPdfExport = ({
       </div>
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="flex h-[92vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogContent className="flex h-[92dvh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <div className="flex items-center justify-between pr-6">
               <DialogTitle className="text-base">
@@ -146,17 +151,28 @@ export const ExpensesPdfExport = ({
               width: "100%",
             }}
           >
-            {isPreviewOpen && (
-              <PDFViewer width="100%" height="100%" showToolbar>
-                <ExpensePdfDocument
-                  meta={meta}
-                  expenses={expenses}
-                  summary={summary}
-                  balances={balances}
-                  debts={debts}
+            {isPreviewOpen &&
+              (isSmallScreen() ? (
+                <PdfHtmlPreview
+                  html={buildExpensesHtml(
+                    meta,
+                    expenses,
+                    summary,
+                    balances,
+                    debts
+                  )}
                 />
-              </PDFViewer>
-            )}
+              ) : (
+                <PDFViewer width="100%" height="100%" showToolbar>
+                  <ExpensePdfDocument
+                    meta={meta}
+                    expenses={expenses}
+                    summary={summary}
+                    balances={balances}
+                    debts={debts}
+                  />
+                </PDFViewer>
+              ))}
           </div>
         </DialogContent>
       </Dialog>

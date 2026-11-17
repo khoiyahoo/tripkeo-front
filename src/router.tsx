@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
+import { BlockingOverlay } from "@/components/atoms/BlockingOverlay";
 import { LoginDialog } from "@/components/organisms/LoginDialog";
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
 import CommunityPage from "@/pages/CommunityPage";
@@ -43,6 +44,7 @@ const RootComponent = () => {
     <>
       <Outlet />
       <LoginDialog />
+      <BlockingOverlay />
       <TanStackRouterDevtools position="bottom-right" />
     </>
   );

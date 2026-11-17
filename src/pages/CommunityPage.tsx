@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useCommunity } from "@/hooks/useCommunity";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { runBlocking } from "@/lib/blocking";
 import { deletePost } from "@/services/communityService";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -58,7 +59,7 @@ export default function CommunityPage() {
   const handleDeletePost = async (post: CommunityPost) => {
     if (!confirm("Bạn có chắc muốn xóa bài viết này?")) return;
     try {
-      await deletePost(post.id);
+      await runBlocking(() => deletePost(post.id));
       toast.success("Đã xóa bài viết");
       refetch();
     } catch {

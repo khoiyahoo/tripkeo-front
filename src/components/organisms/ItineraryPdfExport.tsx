@@ -3,6 +3,7 @@ import { Download, Eye, Loader2, Share2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PdfHtmlPreview } from "@/components/molecules/PdfHtmlPreview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import type { TripMeta } from "@/utils/itineraryPdf";
 import { ItineraryPdfDocument } from "@/utils/itineraryPdf";
+import { buildItineraryHtml } from "@/utils/pdfHtml";
+import { isSmallScreen } from "@/utils/pdfPreview";
 
 import type { ActivityWithId } from "@/types/firestore";
 
@@ -127,16 +130,18 @@ export const ItineraryPdfExport = ({
     }
   };
 
+  const handlePreview = () => {
+    if (guardEmpty()) return;
+    setIsPreviewOpen(true);
+  };
+
   return (
     <>
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            if (guardEmpty()) return;
-            setIsPreviewOpen(true);
-          }}
+          onClick={handlePreview}
           className="min-h-11 gap-1.5"
         >
           <Eye className="h-3.5 w-3.5" />
@@ -176,7 +181,7 @@ export const ItineraryPdfExport = ({
 
       {/* Preview dialog */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="flex h-[92vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogContent className="flex h-[92dvh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <div className="flex items-center justify-between pr-6">
               <DialogTitle className="text-base">
@@ -207,11 +212,16 @@ export const ItineraryPdfExport = ({
               width: "100%",
             }}
           >
-            {isPreviewOpen && (
-              <PDFViewer width="100%" height="100%" showToolbar>
-                {buildDoc()}
-              </PDFViewer>
-            )}
+            {isPreviewOpen &&
+              (isSmallScreen() ? (
+                <PdfHtmlPreview
+                  html={buildItineraryHtml(tripMeta, days, activitiesByDate)}
+                />
+              ) : (
+                <PDFViewer width="100%" height="100%" showToolbar>
+                  {buildDoc()}
+                </PDFViewer>
+              ))}
           </div>
         </DialogContent>
       </Dialog>

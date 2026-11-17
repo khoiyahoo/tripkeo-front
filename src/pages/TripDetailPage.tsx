@@ -38,6 +38,7 @@ import { useTripMembers } from "@/hooks/useMembers";
 import { useTrip } from "@/hooks/useTrip";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import {
   countPostsByTripId,
   deletePostsByTripId,
@@ -99,10 +100,10 @@ const TripDetailPage = () => {
   } = useTripMembers(tripId, trip?.name ?? "", trip?.destination ?? "");
 
   const handleAddCostMember = async (name: string) => {
-    await addCostMember(tripId, name);
+    await runBlocking(() => addCostMember(tripId, name));
   };
   const handleRemoveCostMember = async (name: string) => {
-    await removeCostMember(tripId, name);
+    await runBlocking(() => removeCostMember(tripId, name));
   };
 
   if (isLoading) {
@@ -183,11 +184,11 @@ const TripDetailPage = () => {
     <MainLayout currentPath="/trips">
       <div className="space-y-6">
         {/* Hero header */}
-        <div className="relative overflow-hidden rounded-2xl">
+        <div className="relative -mx-4 -mt-4 overflow-hidden sm:mx-0 sm:mt-0 sm:rounded-2xl">
           <img
             src={trip.coverImage}
             alt={trip.name}
-            className="h-48 w-full object-cover sm:h-56 lg:h-64"
+            className="h-64 w-full object-cover sm:h-56 lg:h-64"
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute right-4 bottom-4 left-4 sm:right-6 sm:bottom-6 sm:left-6">
@@ -304,10 +305,12 @@ const TripDetailPage = () => {
                   setIsDeleting(true);
                   try {
                     // Delete linked community posts first, then the trip
-                    if (linkedPostCount > 0) {
-                      await deletePostsByTripId(tripId);
-                    }
-                    await handleDeleteTrip(tripId);
+                    await runBlocking(async () => {
+                      if (linkedPostCount > 0) {
+                        await deletePostsByTripId(tripId);
+                      }
+                      await handleDeleteTrip(tripId);
+                    }, LONG_TIMEOUT_MS);
                     navigate({ to: "/" });
                   } catch {
                     setIsDeleting(false);
@@ -343,7 +346,7 @@ const TripDetailPage = () => {
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="group flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-4 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800"
+                    className="group flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-2 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800 sm:flex-none sm:shrink-0 sm:px-4"
                   >
                     <tab.icon className="h-4 w-4" />
                     <span className="hidden group-data-[state=active]:inline sm:inline">
@@ -354,17 +357,29 @@ const TripDetailPage = () => {
               </TabsList>
               {/* PDF export — always visible when on itinerary tab */}
               {activeTab === "itinerary" && tripMeta && (
-                <ItineraryPdfExport
-                  tripMeta={tripMeta as TripMeta}
-                  days={days}
-                  activitiesByDate={activitiesByDate}
-                />
+                <div className="hidden sm:block">
+                  <ItineraryPdfExport
+                    tripMeta={tripMeta as TripMeta}
+                    days={days}
+                    activitiesByDate={activitiesByDate}
+                  />
+                </div>
               )}
             </div>
           </div>
 
           <div className="mt-6">
             <TabsContent value="itinerary">
+              {/* Điện thoại: nút PDF nằm trong nội dung (không dính trên thanh tab) để không đè lên thanh chọn ngày */}
+              {tripMeta && (
+                <div className="mb-4 sm:hidden">
+                  <ItineraryPdfExport
+                    tripMeta={tripMeta as TripMeta}
+                    days={days}
+                    activitiesByDate={activitiesByDate}
+                  />
+                </div>
+              )}
               <ItineraryTab
                 tripId={tripId}
                 days={days}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import {
   batchUpdateActivityOrders,
   createActivity,
@@ -95,9 +96,9 @@ export const useItinerary = (tripId: string): UseItineraryResult => {
     activities,
     isLoading,
     error,
-    handleAddActivity,
-    handleUpdateActivity,
-    handleDeleteActivity,
-    handleBatchUpdateOrders,
+    handleAddActivity: blocking(handleAddActivity),
+    handleUpdateActivity: blocking(handleUpdateActivity),
+    handleDeleteActivity: blocking(handleDeleteActivity),
+    handleBatchUpdateOrders: blocking(handleBatchUpdateOrders),
   };
 };

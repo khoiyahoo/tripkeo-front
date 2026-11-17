@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import { sendInviteEmail } from "@/services/emailService";
 import {
   acceptInvitation,
@@ -94,8 +95,8 @@ export const useInvitations = (): UseInvitationsResult => {
   return {
     pendingInvitations,
     isLoading,
-    handleAcceptInvitation,
-    handleDeclineInvitation,
+    handleAcceptInvitation: blocking(handleAcceptInvitation),
+    handleDeclineInvitation: blocking(handleDeclineInvitation),
   };
 };
 
@@ -195,12 +196,12 @@ export const useTripMembers = (
   );
 
   return {
-    handleInviteMember,
-    handleRemoveMember,
-    handleLeaveTrip,
-    handleUpdateRole,
+    handleInviteMember: blocking(handleInviteMember, 45_000),
+    handleRemoveMember: blocking(handleRemoveMember),
+    handleLeaveTrip: blocking(handleLeaveTrip),
+    handleUpdateRole: blocking(handleUpdateRole),
     handleCheckDuplicate,
-    handleCancelInvitation,
-    handleCreateShareLink,
+    handleCancelInvitation: blocking(handleCancelInvitation),
+    handleCreateShareLink: blocking(handleCreateShareLink),
   };
 };

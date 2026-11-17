@@ -146,7 +146,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
   <button
     type="button"
     onClick={onClick}
-    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-transparent bg-surface-card/40 px-4 py-4 text-left transition-all hover:border-outline-variant hover:bg-surface-dim/80 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:gap-4"
+    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border border-transparent bg-surface-card/40 px-4 py-4 text-left transition-all hover:border-outline-variant hover:bg-surface-dim/80 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:gap-4"
   >
     <div className="flex min-w-0 items-center gap-3">
       <img
@@ -160,9 +160,13 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
           <MapPin className="h-3.5 w-3.5 shrink-0" />
           {trip.destination}
         </p>
+        <p className="mt-1 truncate text-secondary-300 text-xs sm:hidden">
+          {formatDateRange(trip.startDate, trip.endDate)} · {trip.memberCount}{" "}
+          thành viên
+        </p>
       </div>
     </div>
-    <div className="order-3 col-span-2 min-w-0 sm:order-none sm:col-span-1">
+    <div className="hidden min-w-0 sm:order-none sm:col-span-1 sm:block">
       <p className="flex items-center gap-1.5 text-secondary-300 text-sm">
         <CalendarDays className="h-3.5 w-3.5 shrink-0" />
         {formatDateRange(trip.startDate, trip.endDate)}
@@ -195,7 +199,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
       <Badge className={getStatusColor(trip.status)}>
         {getStatusLabel(trip.status)}
       </Badge>
-      <ArrowRight className="h-4 w-4 text-secondary-400" />
+      <ArrowRight className="hidden h-4 w-4 text-secondary-400 sm:block" />
     </div>
   </button>
 );
@@ -228,7 +232,7 @@ const InviteRow = ({ invitation, onAccept, onDecline }: InviteRowProps) => (
 );
 
 const EmptyState = ({ onCreateTrip }: { onCreateTrip: () => void }) => (
-  <div className="flex flex-col items-center justify-center rounded-3xl border border-outline-variant border-dashed bg-surface-card/40 py-16 text-center">
+  <div className="flex flex-col items-center justify-center rounded-3xl border border-outline-variant border-dashed bg-surface-card/40 px-4 py-10 text-center sm:py-16">
     <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary-500/12 text-primary-400">
       <Route className="h-7 w-7" />
     </div>
@@ -320,8 +324,8 @@ export default function HomePage() {
         <StatCardsSection trips={trips} />
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-6">
-            <Card>
+          <div className="contents xl:block xl:space-y-6">
+            <Card className="order-2 xl:order-none">
               <CardHeader className="flex flex-col gap-3 border-outline-variant/70 border-b pb-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-white text-xl">
@@ -343,7 +347,7 @@ export default function HomePage() {
                   </Button>
                 )}
               </CardHeader>
-              <CardContent className="p-5">
+              <CardContent className="p-3 sm:p-5">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" />
@@ -368,7 +372,7 @@ export default function HomePage() {
             </Card>
 
             {pendingInvitations.length > 0 && (
-              <Card>
+              <Card className="order-1 xl:order-none">
                 <CardHeader>
                   <CardTitle className="text-white text-xl">
                     Lời mời đang chờ
@@ -399,8 +403,8 @@ export default function HomePage() {
             )}
           </div>
 
-          <div className="space-y-6">
-            <Card>
+          <div className="contents xl:block xl:space-y-6">
+            <Card className="order-3 xl:order-none">
               <CardHeader>
                 <CardTitle className="text-lg text-white">
                   Trạng thái chuyến đi
@@ -462,7 +466,7 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="order-4 xl:order-none">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-lg text-white">
                   Sắp khởi hành
@@ -511,14 +515,6 @@ export default function HomePage() {
             </Card>
           </div>
         </div>
-
-        <Button
-          onClick={handleCreateTrip}
-          size="icon"
-          className="fixed right-6 bottom-24 z-50 h-14 w-14 rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.35)] sm:hidden"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
       </div>
     </MainLayout>
   );

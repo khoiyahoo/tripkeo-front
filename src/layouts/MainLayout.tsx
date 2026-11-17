@@ -32,7 +32,7 @@ export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
       <Sidebar currentPath={currentPath} onNavigate={handleNavigate} />
       {/* overflow-x-clip instead of overflow-x-hidden: clip does not create a Block Formatting Context,
            which allows position:sticky to work correctly in descendant elements. */}
-      <main className="relative z-10 flex-1 overflow-x-clip">
+      <main className="relative z-10 min-w-0 flex-1 overflow-x-clip">
         <div className="p-4 pb-28 sm:p-6 sm:pb-28 lg:p-8">{children}</div>
       </main>
       <BottomNav currentPath={currentPath} onNavigate={handleNavigate} />

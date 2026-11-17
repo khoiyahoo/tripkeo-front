@@ -41,6 +41,7 @@ import { ACTIVITY_TYPE_CONFIG } from "@/constants/trip";
 import { usePost } from "@/hooks/usePost";
 import { useTrips } from "@/hooks/useTrips";
 import { MainLayout } from "@/layouts/MainLayout";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { uploadToCloudinary } from "@/services/cloudinaryService";
@@ -1234,7 +1235,12 @@ export default function PostDetailPage() {
           open={showCloneDialog}
           onClose={() => setShowCloneDialog(false)}
           post={post}
-          onConfirm={handleCloneTrip}
+          onConfirm={(name, date, cover) =>
+            runBlocking(
+              () => handleCloneTrip(name, date, cover),
+              LONG_TIMEOUT_MS
+            )
+          }
         />
       )}
 

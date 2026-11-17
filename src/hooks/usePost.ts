@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import {
   addComment,
   deleteComment,
@@ -174,12 +175,12 @@ export function usePost(postId: string): UsePostResult {
     comments,
     isLiked,
     handleToggleLike,
-    handleAddComment,
-    handleDeleteComment,
-    handleUpdateComment,
-    handleUpdatePost,
-    handleDeletePost,
-    handleClone,
+    handleAddComment: blocking(handleAddComment),
+    handleDeleteComment: blocking(handleDeleteComment),
+    handleUpdateComment: blocking(handleUpdateComment),
+    handleUpdatePost: blocking(handleUpdatePost),
+    handleDeletePost: blocking(handleDeletePost),
+    handleClone: blocking(handleClone),
     refetchPost,
     setPost,
   };
