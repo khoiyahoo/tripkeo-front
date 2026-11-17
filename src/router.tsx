@@ -14,6 +14,7 @@ import FriendsPage from "@/pages/FriendsPage";
 import HomePage from "@/pages/HomePage";
 import InvitePage from "@/pages/InvitePage";
 import LoginPage from "@/pages/LoginPage";
+import MobileAuthPage from "@/pages/MobileAuthPage";
 import PostDetailPage from "@/pages/PostDetailPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -61,6 +62,12 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const mobileAuthRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/mobile-auth",
+  component: MobileAuthPage,
 });
 
 const tripsRoute = createRoute({
@@ -120,6 +127,7 @@ const inviteRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  mobileAuthRoute,
   tripsRoute,
   createTripRoute,
   tripDetailRoute,
