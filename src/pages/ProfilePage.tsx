@@ -1,15 +1,20 @@
+import { useNavigate } from "@tanstack/react-router";
 import {
+  ChevronRight,
   Edit3,
   Globe,
   Loader2,
+  LogOut,
   MapPin,
   Plane,
+  Settings,
   Users,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { LogoutConfirmDialog } from "@/components/organisms/LogoutConfirmDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,12 +32,14 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { MainLayout } from "@/layouts/MainLayout";
 import { auth } from "@/lib/firebase";
+import { signOut } from "@/services/authService";
 import { updateDisplayName } from "@/services/userService";
 import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency } from "@/utils/format";
 
 const ProfilePage = () => {
   const { isAuthenticated } = useAuthGuard();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
 
@@ -41,6 +48,7 @@ const ProfilePage = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
   const openEdit = () => {
     setEditName(user?.displayName ?? "");
@@ -183,6 +191,28 @@ const ProfilePage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Menu cá nhân — chỉ hiện trên điện thoại (trên máy tính đã có ở thanh bên) */}
+        <Card className="overflow-hidden border-none shadow-sm lg:hidden">
+          <button
+            className="flex w-full items-center gap-3 px-4 py-4 text-left text-on-surface hover:bg-surface-dim"
+            onClick={() => navigate({ to: "/settings" })}
+            type="button"
+          >
+            <Settings className="h-5 w-5 text-on-surface-variant" />
+            <span className="flex-1">Cài đặt</span>
+            <ChevronRight className="h-4 w-4 text-on-surface-variant" />
+          </button>
+          <div className="h-px bg-outline-variant" />
+          <button
+            className="flex w-full items-center gap-3 px-4 py-4 text-left text-error-500 hover:bg-surface-dim"
+            onClick={() => setIsLogoutOpen(true)}
+            type="button"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="flex-1">Đăng xuất</span>
+          </button>
+        </Card>
       </div>
 
       {/* Edit display name modal */}
@@ -237,6 +267,15 @@ const ProfilePage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LogoutConfirmDialog
+        isOpen={isLogoutOpen}
+        onClose={() => setIsLogoutOpen(false)}
+        onConfirm={() => {
+          signOut().catch(() => null);
+          setIsLogoutOpen(false);
+        }}
+      />
     </MainLayout>
   );
 };

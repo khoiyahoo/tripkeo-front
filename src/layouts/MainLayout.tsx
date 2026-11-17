@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
 
+import { BottomNav } from "../components/organisms/BottomNav";
 import { Sidebar } from "../components/organisms/Sidebar";
 
 interface MainLayoutProps {
@@ -23,7 +24,7 @@ export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-surface text-on-surface">
+    <div className="relative flex min-h-dvh bg-surface text-on-surface">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-primary-500/10 blur-3xl" />
         <div className="absolute -bottom-32 left-[20%] h-80 w-80 rounded-full bg-secondary-500/10 blur-3xl" />
@@ -32,8 +33,9 @@ export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
       {/* overflow-x-clip instead of overflow-x-hidden: clip does not create a Block Formatting Context,
            which allows position:sticky to work correctly in descendant elements. */}
       <main className="relative z-10 flex-1 overflow-x-clip">
-        <div className="p-4 pt-16 sm:p-6 lg:p-8">{children}</div>
+        <div className="p-4 pb-28 sm:p-6 sm:pb-28 lg:p-8">{children}</div>
       </main>
+      <BottomNav currentPath={currentPath} onNavigate={handleNavigate} />
     </div>
   );
 };

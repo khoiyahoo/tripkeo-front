@@ -64,7 +64,7 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed top-4 left-4 z-40 flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant bg-surface-card text-on-surface shadow-[0_8px_24px_rgba(0,0,0,0.3)] lg:hidden"
+        className="fixed top-4 left-4 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-outline-variant bg-surface-card text-on-surface shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
         aria-label="Mở menu"
       >
         <Menu className="h-5 w-5" />
@@ -85,7 +85,7 @@ export const Sidebar = ({ currentPath, onNavigate }: SidebarProps) => {
 
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 flex h-screen w-64 flex-col border-outline-variant border-r bg-surface px-4 py-5 transition-transform duration-300 lg:sticky lg:w-20 lg:px-3",
+          "fixed top-0 left-0 z-50 flex h-dvh w-64 flex-col border-outline-variant border-r bg-surface px-4 py-5 transition-transform duration-300 lg:sticky lg:w-20 lg:px-3",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >

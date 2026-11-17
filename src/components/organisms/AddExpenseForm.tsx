@@ -314,7 +314,7 @@ export const AddExpenseForm = ({
                         updateDetail(name, Number(val) || 0);
                       }
                     }}
-                    className="h-8 w-100 text-sm"
+                    className="h-8 min-w-0 flex-1 text-sm"
                   />
                   <span className="text-on-surface-variant text-xs">
                     {splitMethod === "percentage"

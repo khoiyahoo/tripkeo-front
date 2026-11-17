@@ -116,20 +116,20 @@ const StatCardsSection = ({ trips }: { trips: TripWithId[] }) => {
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       {items.map((item) => (
         <Card key={item.label}>
-          <CardContent className="flex items-start justify-between gap-4 p-5">
+          <CardContent className="flex items-start justify-between gap-2 p-4 sm:gap-4 sm:p-5">
             <div>
               <p className="text-on-surface-variant text-sm">{item.label}</p>
-              <p className="mt-3 font-semibold text-3xl text-white">
+              <p className="mt-2 font-semibold text-2xl text-white sm:mt-3 sm:text-3xl">
                 {item.value}
               </p>
               <p className="mt-2 text-secondary-300 text-xs">{item.sublabel}</p>
             </div>
             <div
               className={cn(
-                "flex h-12 w-12 items-center justify-center rounded-2xl",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl",
                 item.accentClassName
               )}
             >
@@ -146,7 +146,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
   <button
     type="button"
     onClick={onClick}
-    className="grid w-full grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-4 rounded-2xl border border-transparent bg-surface-card/40 px-4 py-4 text-left transition-all hover:border-outline-variant hover:bg-surface-dim/80"
+    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-transparent bg-surface-card/40 px-4 py-4 text-left transition-all hover:border-outline-variant hover:bg-surface-dim/80 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:gap-4"
   >
     <div className="flex min-w-0 items-center gap-3">
       <img
@@ -162,7 +162,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
         </p>
       </div>
     </div>
-    <div className="min-w-0">
+    <div className="order-3 col-span-2 min-w-0 sm:order-none sm:col-span-1">
       <p className="flex items-center gap-1.5 text-secondary-300 text-sm">
         <CalendarDays className="h-3.5 w-3.5 shrink-0" />
         {formatDateRange(trip.startDate, trip.endDate)}
@@ -191,7 +191,7 @@ const DashboardTripRow = ({ trip, onClick }: DashboardTripRowProps) => (
         </span>
       </div>
     </div>
-    <div className="flex items-center gap-3 justify-self-end">
+    <div className="flex items-center gap-3 justify-self-end sm:order-none">
       <Badge className={getStatusColor(trip.status)}>
         {getStatusLabel(trip.status)}
       </Badge>
@@ -515,7 +515,7 @@ export default function HomePage() {
         <Button
           onClick={handleCreateTrip}
           size="icon"
-          className="fixed right-6 bottom-6 z-50 h-14 w-14 rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.35)] sm:hidden"
+          className="fixed right-6 bottom-24 z-50 h-14 w-14 rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.35)] sm:hidden"
         >
           <Plus className="h-6 w-6" />
         </Button>

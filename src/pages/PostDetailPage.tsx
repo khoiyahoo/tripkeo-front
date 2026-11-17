@@ -143,7 +143,7 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
   };
 
   return (
-    <div className="w-72 rounded-sm border border-input bg-white p-3 shadow-lg">
+    <div className="w-full rounded-sm border border-input bg-white p-3 shadow-lg sm:w-72">
       <div className="mb-2 flex gap-2">
         <input
           className="h-8 flex-1 rounded-sm border border-input bg-[#f2f2f2] px-2 text-gray-400 text-sm outline-none"
@@ -334,7 +334,7 @@ function CommentItem({
                   <Smile className="h-3.5 w-3.5" />
                 </button>
                 {showEditEmoji && (
-                  <div className="absolute bottom-9 left-0 z-50">
+                  <div className="fixed inset-x-4 bottom-20 z-50 sm:absolute sm:inset-x-auto sm:bottom-9 sm:left-0 sm:w-[352px]">
                     <Picker
                       data={data}
                       onEmojiSelect={(emoji: { native: string }) => {
@@ -344,6 +344,7 @@ function CommentItem({
                       locale="vi"
                       theme="light"
                       previewPosition="none"
+                      dynamicWidth
                     />
                   </div>
                 )}
@@ -362,7 +363,7 @@ function CommentItem({
                   GIF
                 </button>
                 {showEditGif && (
-                  <div className="absolute bottom-9 left-0 z-50">
+                  <div className="fixed inset-x-4 bottom-20 z-50 sm:absolute sm:inset-x-auto sm:bottom-9 sm:left-0 sm:w-[352px]">
                     <GifPicker
                       onSelect={(url) => {
                         setEditGifUrl(url);
@@ -611,7 +612,7 @@ function CommentInput({
             <Smile className="h-4 w-4" />
           </button>
           {showEmoji && (
-            <div className="absolute bottom-10 left-0 z-50">
+            <div className="fixed inset-x-4 bottom-20 z-50 sm:absolute sm:inset-x-auto sm:bottom-10 sm:left-0 sm:w-[352px]">
               <Picker
                 data={data}
                 onEmojiSelect={(emoji: { native: string }) => {
@@ -621,6 +622,7 @@ function CommentInput({
                 locale="vi"
                 theme="light"
                 previewPosition="none"
+                dynamicWidth
               />
             </div>
           )}
@@ -639,7 +641,7 @@ function CommentInput({
             GIF
           </button>
           {showGif && (
-            <div className="absolute bottom-10 left-0 z-50">
+            <div className="fixed inset-x-4 bottom-20 z-50 sm:absolute sm:inset-x-auto sm:bottom-10 sm:left-0 sm:w-[352px]">
               <GifPicker onSelect={handleGifSelect} />
             </div>
           )}

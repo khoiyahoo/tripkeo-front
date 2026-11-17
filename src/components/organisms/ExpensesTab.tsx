@@ -270,7 +270,7 @@ export const ExpensesTab = ({
                       {formatCurrency(expense.amount)}
                     </span>
                     {canEdit && (
-                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex shrink-0 gap-0.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon"

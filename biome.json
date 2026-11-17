@@ -23,7 +23,7 @@
     "domains": {
       "react": "recommended"
     },
-    "includes": ["**/src/**", "!**/src/stories"],
+    "includes": ["**/src/**", "!**/src/stories", "!mobile"],
     "rules": {
       "recommended": true,
       "nursery": {

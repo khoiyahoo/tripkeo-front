@@ -380,7 +380,7 @@ const CreateTripPage = () => {
               <div className="space-y-5">
                 <div>
                   <Label htmlFor="emailInput">Mời thành viên qua email</Label>
-                  <div className="mt-1.5 flex items-center gap-2">
+                  <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="flex min-h-10.5 flex-1 flex-wrap items-center gap-1.5 rounded-md border border-outline-variant bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-1">
                       {formData.invitedMembers.map((member) => (
                         <span
@@ -427,7 +427,7 @@ const CreateTripPage = () => {
                         )
                       }
                     >
-                      <SelectTrigger className="h-10.5 w-37.5">
+                      <SelectTrigger className="h-10.5 w-full sm:w-37.5">
                         <SelectValue placeholder="Chọn vai trò" />
                       </SelectTrigger>
                       <SelectContent>

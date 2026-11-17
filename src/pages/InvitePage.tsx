@@ -142,7 +142,7 @@ const InvitePage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
+      <div className="flex min-h-dvh items-center justify-center bg-surface">
         <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
       </div>
     );
@@ -150,7 +150,7 @@ const InvitePage = () => {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface p-4">
+      <div className="flex min-h-dvh items-center justify-center bg-surface p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl bg-surface-card p-8 text-center shadow-lg">
           <XCircle className="mx-auto h-12 w-12 text-error-500" />
           <h2 className="font-semibold text-lg text-on-surface">{error}</h2>
@@ -192,7 +192,7 @@ const InvitePage = () => {
         : "bg-surface-dim text-on-surface-variant";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface p-4">
+    <div className="flex min-h-dvh items-center justify-center bg-surface p-4">
       <div className="w-full max-w-md space-y-5 rounded-2xl bg-surface-card p-8 shadow-lg">
         {/* Header */}
         <div className="flex items-end justify-center">

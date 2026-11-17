@@ -294,3 +294,20 @@ h2 {
 [data-color-mode="dark"] .wmde-markdown li::marker {
   color: #abbbc2;
 }
+
+/* iOS Safari tự phóng to trang khi focus vào ô nhập có chữ < 16px, làm giao diện bị vỡ/tràn.
+   Luật này nằm ngoài @layer nên thắng các class text-sm của Tailwind. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Safari iOS: 100vh lớn hơn vùng nhìn thấy (thanh địa chỉ), dùng dvh khi trình duyệt hỗ trợ. */
+@supports (min-height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}

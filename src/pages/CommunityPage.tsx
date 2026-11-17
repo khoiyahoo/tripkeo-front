@@ -77,7 +77,7 @@ export default function CommunityPage() {
 
   return (
     <MainLayout currentPath="/community">
-      <div className="space-y-6 px-4 py-6 sm:px-6">
+      <div className="space-y-6 py-2 sm:px-2 sm:py-6">
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -107,14 +107,14 @@ export default function CommunityPage() {
         </div>
 
         {/* ── Region filters ──────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {REGION_FILTERS.map((f) => (
             <Button
               key={f.value}
               size="sm"
               variant={region === f.value ? "default" : "outline"}
               onClick={() => setRegion(f.value as CommunityRegion | "all")}
-              className={region === f.value ? "bg-primary-500 text-white" : ""}
+              className={`shrink-0 ${region === f.value ? "bg-primary-500 text-white" : ""}`}
             >
               {f.label}
             </Button>

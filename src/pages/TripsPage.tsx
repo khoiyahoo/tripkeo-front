@@ -186,12 +186,12 @@ export default function TripsPage() {
         {/* Filter bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           {/* Date range */}
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <DatePicker
               value={fromDate}
               onChange={setFromDate}
               maxDate={toDate || undefined}
-              className="h-9 w-36 text-sm"
+              className="h-9 min-w-0 flex-1 text-sm sm:w-36 sm:flex-none"
               placeholder="Từ ngày"
             />
             <span className="text-on-surface-variant text-sm">—</span>
@@ -199,7 +199,7 @@ export default function TripsPage() {
               value={toDate}
               onChange={setToDate}
               minDate={fromDate || undefined}
-              className="h-9 w-36 text-sm"
+              className="h-9 min-w-0 flex-1 text-sm sm:w-36 sm:flex-none"
               placeholder="Đến ngày"
             />
           </div>
@@ -259,7 +259,7 @@ export default function TripsPage() {
       <Button
         onClick={handleCreateTrip}
         size="icon"
-        className="fixed right-6 bottom-6 z-50 h-14 w-14 rounded-full shadow-lg sm:hidden"
+        className="fixed right-6 bottom-24 z-50 h-14 w-14 rounded-full shadow-lg sm:hidden"
       >
         <Plus className="h-6 w-6" />
       </Button>
