@@ -30,6 +30,23 @@ export interface TripMemberInfo {
   participationEnd?: string;
 }
 
+// ─── Quỹ chung (thu tiền trước theo đầu người) ──────────────
+export type FundTransactionType = "contribution" | "refund";
+export type FundPaymentMethod = "cash" | "bank";
+/** Nguồn chi của một khoản chi tiêu. Mặc định (không có field) = "member": người ứng trước. */
+export type ExpensePaidFrom = "fund" | "member";
+
+export interface FundConfig {
+  enabled: boolean;
+  /** Mức đóng mặc định mỗi người (VND, số nguyên) */
+  perPerson: number;
+  currency: string;
+  /** Mức đóng riêng từng người (theo tên costMember); thiếu thì dùng perPerson */
+  requiredByMember?: Record<string, number>;
+  /** Có giá trị = quỹ đã đóng (khóa ghi). Chủ chuyến mở lại bằng cách đặt null. */
+  closedAt?: Timestamp | null;
+}
+
 export interface TripDoc {
   name: string;
   destination: string;
@@ -43,6 +60,8 @@ export interface TripDoc {
   members: Record<string, TripMemberInfo>;
   /** Names entered by the owner for expense tracking (no auth required). */
   costMembers: string[];
+  /** Quỹ chung; không có field = chuyến không dùng quỹ. */
+  fund?: FundConfig;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -78,6 +97,8 @@ export interface ExpenseDoc {
   date: Timestamp;
   /** Name of the payer – from the trip's costMembers list */
   paidBy: string;
+  /** "fund" = chi từ quỹ chung (paidBy để trống); mặc định "member" = người ứng trước */
+  paidFrom?: ExpensePaidFrom;
   /** Names of participants – subset of costMembers */
   splitBetween: string[];
   /** How the expense is divided */
@@ -174,13 +195,46 @@ export interface CreateExpenseInput {
   amount: number;
   category: ExpenseCategory;
   date: string; // YYYY-MM-DD
-  /** Name of payer (from costMembers) */
+  /** Name of payer (from costMembers). Để trống khi chi từ quỹ. */
   paidBy: string;
+  /** Nguồn chi; bỏ trống = "member" */
+  paidFrom?: ExpensePaidFrom;
   /** Names of participants (from costMembers) */
   splitBetween: string[];
   splitMethod: SplitMethod;
   splitDetails?: Record<string, number>;
   receiptUrl?: string;
+  note?: string;
+}
+
+// ─── Fund transaction (subcollection: trips/{tripId}/fundTransactions) ─
+export interface FundTransactionDoc {
+  type: FundTransactionType;
+  /** Tên thành viên (costMember) đóng hoặc nhận hoàn */
+  member: string;
+  /** VND, số nguyên dương */
+  amount: number;
+  date: Timestamp;
+  method?: FundPaymentMethod;
+  note?: string;
+  /** Có giá trị = giao dịch đã bị hủy (không xóa cứng để giữ lịch sử) */
+  voidedAt?: Timestamp | null;
+  voidReason?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface FundTransactionWithId extends FundTransactionDoc {
+  id: string;
+}
+
+export interface CreateFundTransactionInput {
+  type: FundTransactionType;
+  member: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  method?: FundPaymentMethod;
   note?: string;
 }
 

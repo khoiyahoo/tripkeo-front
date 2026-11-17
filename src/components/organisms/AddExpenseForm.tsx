@@ -1,9 +1,18 @@
 import { Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { DatePicker } from "@/components/molecules/DatePicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FUND_COPY } from "@/constants/fund";
 import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 
 import type {
@@ -51,6 +61,10 @@ interface AddExpenseFormProps {
   /** Names from the trip's costMembers list */
   costMembers: string[];
   initialData?: ExpenseWithId;
+  /** Chuyến đã bật quỹ và quỹ chưa đóng: cho chọn "Nguồn chi: Quỹ chung" */
+  fundAvailable?: boolean;
+  /** Quỹ đã có ít nhất một khoản đóng đang hiệu lực; chưa có thì không cho chọn "Quỹ chung" */
+  fundHasContributions?: boolean;
   onSubmit: (input: CreateExpenseInput) => Promise<unknown>;
   onCancel: () => void;
 }
@@ -58,6 +72,8 @@ interface AddExpenseFormProps {
 export const AddExpenseForm = ({
   costMembers,
   initialData,
+  fundAvailable = false,
+  fundHasContributions = true,
   onSubmit,
   onCancel,
 }: AddExpenseFormProps) => {
@@ -78,6 +94,13 @@ export const AddExpenseForm = ({
       : new Date().toISOString().split("T")[0]
   );
   const [paidBy, setPaidBy] = useState(initialData?.paidBy ?? "");
+  // Mặc định chi từ quỹ khi chuyến có quỹ; khoản cũ giữ nguồn chi của nó
+  const [paidFrom, setPaidFrom] = useState<"fund" | "member">(
+    initialData?.paidFrom ??
+      (fundAvailable && fundHasContributions ? "fund" : "member")
+  );
+  const [showFundWarning, setShowFundWarning] = useState(false);
+  const showSourcePicker = fundAvailable || initialData?.paidFrom === "fund";
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(
     initialData?.splitMethod ?? "equal"
   );
@@ -127,22 +150,40 @@ export const AddExpenseForm = ({
   })();
 
   const canSubmit =
-    description.trim() && amount > 0 && paidBy && splitValid && !isSubmitting;
+    description.trim() &&
+    amount > 0 &&
+    (paidFrom === "fund" || paidBy) &&
+    splitValid &&
+    !isSubmitting;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setIsSubmitting(true);
-    await onSubmit({
-      description: description.trim(),
-      amount,
-      category,
-      date,
-      paidBy,
-      splitBetween,
-      splitMethod,
-      splitDetails: splitMethod !== "equal" ? splitDetails : undefined,
-      note: note.trim() || undefined,
-    });
+    try {
+      await onSubmit({
+        description: description.trim(),
+        amount,
+        category,
+        date,
+        paidBy: paidFrom === "fund" ? "" : paidBy,
+        paidFrom,
+        splitBetween,
+        splitMethod,
+        splitDetails: splitMethod !== "equal" ? splitDetails : undefined,
+        note: note.trim() || undefined,
+      });
+    } catch (err) {
+      // Người dùng không xác nhận hộp thoại ảnh hưởng quỹ: giữ nguyên form
+      setIsSubmitting(false);
+      if (!(err instanceof Error && err.message === "cancelled")) {
+        toast.error(
+          err instanceof Error && err.message
+            ? err.message
+            : "Không thể lưu chi tiêu. Vui lòng thử lại."
+        );
+      }
+      return;
+    }
     setIsSubmitting(false);
     onCancel();
   };
@@ -167,216 +208,290 @@ export const AddExpenseForm = ({
   })();
 
   return (
-    <Card className="border border-primary-200 shadow-sm">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-center justify-between">
-          <h4 className="font-semibold text-on-surface text-sm">
-            {isEditMode ? "Chỉnh sửa chi tiêu" : "Thêm chi tiêu"}
-          </h4>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onCancel}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+    <>
+      <Card className="border border-primary-200 shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-on-surface text-sm">
+              {isEditMode ? "Chỉnh sửa chi tiêu" : "Thêm chi tiêu"}
+            </h4>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onCancel}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-        <div>
-          <Label>Tiêu đề *</Label>
-          <Input
-            placeholder="VD: Bữa sáng ở quán X"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Số tiền (VNĐ) *</Label>
+            <Label>Tiêu đề *</Label>
             <Input
-              inputMode="numeric"
-              placeholder="0"
-              value={formatCurrencyInput(amountRaw)}
-              onChange={(e) => setAmountRaw(parseCurrencyInput(e.target.value))}
+              placeholder="VD: Bữa sáng ở quán X"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="mt-1"
             />
           </div>
-          <div>
-            <Label>Ngày</Label>
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              className="mt-1"
-              placeholder="Chọn ngày"
-            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Số tiền (VNĐ) *</Label>
+              <Input
+                inputMode="numeric"
+                placeholder="0"
+                value={formatCurrencyInput(amountRaw)}
+                onChange={(e) =>
+                  setAmountRaw(parseCurrencyInput(e.target.value))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Ngày</Label>
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                className="mt-1"
+                placeholder="Chọn ngày"
+              />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <Label>Người trả *</Label>
-          <p className="mt-1 text-on-surface-variant text-xs">
-            Bạn có thể thêm người trả nếu chưa có trong danh sách
-          </p>
-          <Select value={paidBy} onValueChange={setPaidBy}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Chọn người trả" />
-            </SelectTrigger>
-            <SelectContent>
-              {costMembers.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Người tham gia</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {costMembers.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => toggleMember(name)}
-                className={`rounded-full border px-3 py-1 font-medium text-xs transition-colors ${splitBetween.includes(name) ? "border-primary-500 bg-primary-100 text-primary-800" : "border-outline-variant bg-surface text-on-surface-variant"}`}
+          {showSourcePicker && (
+            <div>
+              <Label>Nguồn chi *</Label>
+              <RadioGroup
+                value={paidFrom}
+                onValueChange={(v) => {
+                  // Quỹ chưa có ai đóng: không cho chọn, báo cho người dùng biết
+                  if (
+                    v === "fund" &&
+                    !fundHasContributions &&
+                    initialData?.paidFrom !== "fund"
+                  ) {
+                    setShowFundWarning(true);
+                    return;
+                  }
+                  setPaidFrom(v as "fund" | "member");
+                }}
+                className="mt-2 flex flex-wrap gap-4"
               >
-                {name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <Label>Cách chia</Label>
-          <RadioGroup
-            value={splitMethod}
-            onValueChange={(v) => setSplitMethod(v as SplitMethod)}
-            className="mt-2 flex gap-3"
-          >
-            {SPLIT_METHODS.map((m) => (
-              <div key={m.value} className="flex items-center gap-1.5">
-                <RadioGroupItem value={m.value} id={`split-${m.value}`} />
-                <Label
-                  htmlFor={`split-${m.value}`}
-                  className="cursor-pointer font-normal text-sm"
-                >
-                  {m.label}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
-        </div>
-
-        {splitMethod !== "equal" && splitBetween.length > 0 && (
-          <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-dim/50 p-3">
-            {splitBetween.map((name) => {
-              const rawNum = splitDetails[name];
-              let displayValue = "";
-              if (
-                splitMethod === "amount" &&
-                typeof rawNum === "number" &&
-                !Number.isNaN(rawNum)
-              ) {
-                displayValue = formatCurrencyInput(String(rawNum));
-              } else if (
-                splitMethod === "percentage" &&
-                typeof rawNum === "number" &&
-                !Number.isNaN(rawNum)
-              ) {
-                displayValue = rawNum.toLocaleString("vi-VN");
-              } else if (typeof rawNum === "number" && !Number.isNaN(rawNum)) {
-                displayValue = String(rawNum);
-              } else {
-                displayValue = "";
-              }
-              return (
-                <div key={name} className="flex items-center gap-2">
-                  <span className="w-28 truncate text-on-surface text-sm">
-                    {name}
-                  </span>
-                  <Input
-                    inputMode="numeric"
-                    placeholder={splitMethod === "shares" ? "1" : "0"}
-                    value={displayValue}
-                    onChange={(e) => {
-                      let val = e.target.value;
-                      if (
-                        splitMethod === "amount" ||
-                        splitMethod === "percentage"
-                      ) {
-                        val = parseCurrencyInput(val);
-                        updateDetail(name, val ? Number(val) : 0);
-                      } else {
-                        updateDetail(name, Number(val) || 0);
-                      }
-                    }}
-                    className="h-8 min-w-0 flex-1 text-sm"
-                  />
-                  <span className="text-on-surface-variant text-xs">
-                    {splitMethod === "percentage"
-                      ? "%"
-                      : splitMethod === "amount"
-                        ? "đ"
-                        : "phần"}
-                  </span>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="fund" id="source-fund" />
+                  <Label
+                    htmlFor="source-fund"
+                    className="cursor-pointer font-normal text-sm"
+                  >
+                    Quỹ chung
+                  </Label>
                 </div>
-              );
-            })}
-            {splitSummary && (
-              <p
-                className={`text-xs ${splitValid ? "text-success-600" : "text-error-600"}`}
-              >
-                {splitSummary}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div>
-          <Label>Danh mục</Label>
-          <Select
-            value={category}
-            onValueChange={(v) => setCategory(v as ExpenseCategory)}
-          >
-            <SelectTrigger className="mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {EXPENSE_CATEGORIES.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Ghi chú</Label>
-          <Input
-            placeholder="Tùy chọn"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-
-        <Button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="w-full"
-          size="sm"
-        >
-          {isSubmitting && (
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="member" id="source-member" />
+                  <Label
+                    htmlFor="source-member"
+                    className="cursor-pointer font-normal text-sm"
+                  >
+                    Cá nhân ứng trước
+                  </Label>
+                </div>
+              </RadioGroup>
+              {paidFrom === "fund" && (
+                <p className="mt-1 text-on-surface-variant text-xs">
+                  Khoản này sẽ được trừ vào quỹ chung.
+                </p>
+              )}
+              {!fundHasContributions && paidFrom !== "fund" && (
+                <p className="mt-1 text-warning-400 text-xs">
+                  Quỹ chưa có khoản đóng nào nên chưa thể chi từ quỹ.
+                </p>
+              )}
+            </div>
           )}
-          {isEditMode ? "Lưu thay đổi" : "Thêm chi tiêu"}
-        </Button>
-      </CardContent>
-    </Card>
+
+          {paidFrom === "member" && (
+            <div>
+              <Label>Người trả *</Label>
+              <p className="mt-1 text-on-surface-variant text-xs">
+                Bạn có thể thêm người trả nếu chưa có trong danh sách
+              </p>
+              <Select value={paidBy} onValueChange={setPaidBy}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Chọn người trả" />
+                </SelectTrigger>
+                <SelectContent>
+                  {costMembers.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div>
+            <Label>Người tham gia</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {costMembers.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleMember(name)}
+                  className={`rounded-full border px-3 py-1 font-medium text-xs transition-colors ${splitBetween.includes(name) ? "border-primary-500 bg-primary-100 text-primary-800" : "border-outline-variant bg-surface text-on-surface-variant"}`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>Cách chia</Label>
+            <RadioGroup
+              value={splitMethod}
+              onValueChange={(v) => setSplitMethod(v as SplitMethod)}
+              className="mt-2 flex gap-3"
+            >
+              {SPLIT_METHODS.map((m) => (
+                <div key={m.value} className="flex items-center gap-1.5">
+                  <RadioGroupItem value={m.value} id={`split-${m.value}`} />
+                  <Label
+                    htmlFor={`split-${m.value}`}
+                    className="cursor-pointer font-normal text-sm"
+                  >
+                    {m.label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          {splitMethod !== "equal" && splitBetween.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-dim/50 p-3">
+              {splitBetween.map((name) => {
+                const rawNum = splitDetails[name];
+                let displayValue = "";
+                if (
+                  splitMethod === "amount" &&
+                  typeof rawNum === "number" &&
+                  !Number.isNaN(rawNum)
+                ) {
+                  displayValue = formatCurrencyInput(String(rawNum));
+                } else if (
+                  splitMethod === "percentage" &&
+                  typeof rawNum === "number" &&
+                  !Number.isNaN(rawNum)
+                ) {
+                  displayValue = rawNum.toLocaleString("vi-VN");
+                } else if (
+                  typeof rawNum === "number" &&
+                  !Number.isNaN(rawNum)
+                ) {
+                  displayValue = String(rawNum);
+                } else {
+                  displayValue = "";
+                }
+                return (
+                  <div key={name} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-on-surface text-sm">
+                      {name}
+                    </span>
+                    <Input
+                      inputMode="numeric"
+                      placeholder={splitMethod === "shares" ? "1" : "0"}
+                      value={displayValue}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        if (
+                          splitMethod === "amount" ||
+                          splitMethod === "percentage"
+                        ) {
+                          val = parseCurrencyInput(val);
+                          updateDetail(name, val ? Number(val) : 0);
+                        } else {
+                          updateDetail(name, Number(val) || 0);
+                        }
+                      }}
+                      className="h-8 min-w-0 flex-1 text-sm"
+                    />
+                    <span className="text-on-surface-variant text-xs">
+                      {splitMethod === "percentage"
+                        ? "%"
+                        : splitMethod === "amount"
+                          ? "đ"
+                          : "phần"}
+                    </span>
+                  </div>
+                );
+              })}
+              {splitSummary && (
+                <p
+                  className={`text-xs ${splitValid ? "text-success-600" : "text-error-600"}`}
+                >
+                  {splitSummary}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <Label>Danh mục</Label>
+            <Select
+              value={category}
+              onValueChange={(v) => setCategory(v as ExpenseCategory)}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EXPENSE_CATEGORIES.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Ghi chú</Label>
+            <Input
+              placeholder="Tùy chọn"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="w-full"
+            size="sm"
+          >
+            {isSubmitting && (
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            )}
+            {isEditMode ? "Lưu thay đổi" : "Thêm chi tiêu"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showFundWarning} onOpenChange={setShowFundWarning}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{FUND_COPY.noContributionTitle}</DialogTitle>
+            <DialogDescription>
+              {FUND_COPY.noContributionBody}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowFundWarning(false)}>Đã hiểu</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

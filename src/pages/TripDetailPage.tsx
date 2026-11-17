@@ -7,6 +7,7 @@ import {
   Loader2,
   MapPin,
   Pencil,
+  PiggyBank,
   Scale,
   Trash2,
   Users,
@@ -16,6 +17,7 @@ import { useState } from "react";
 import { BalanceTab } from "@/components/organisms/BalanceTab";
 import { EditTripDialog } from "@/components/organisms/EditTripDialog";
 import { ExpensesTab } from "@/components/organisms/ExpensesTab";
+import { FundTab } from "@/components/organisms/FundTab";
 import type { TripMeta } from "@/components/organisms/ItineraryPdfExport";
 import { ItineraryPdfExport } from "@/components/organisms/ItineraryPdfExport";
 import { ItineraryTab } from "@/components/organisms/ItineraryTab";
@@ -33,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useFund } from "@/hooks/useFund";
 import { useItinerary } from "@/hooks/useItinerary";
 import { useTripMembers } from "@/hooks/useMembers";
 import { useTrip } from "@/hooks/useTrip";
@@ -57,6 +60,7 @@ const TABS = [
   { value: "itinerary", label: "Lịch trình", icon: ClipboardList },
   { value: "members", label: "Thành viên", icon: Users },
   { value: "expenses", label: "Chi tiêu", icon: DollarSign },
+  { value: "fund", label: "Quỹ", icon: PiggyBank },
   { value: "balance", label: "Số dư", icon: Scale },
 ];
 
@@ -71,6 +75,8 @@ const TripDetailPage = () => {
   const [linkedPostCount, setLinkedPostCount] = useState(0);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("itinerary");
+  // Tab Quỹ yêu cầu mở sẵn form "Thêm chi từ quỹ" ở tab Chi tiêu
+  const [openFundExpense, setOpenFundExpense] = useState(false);
   const {
     activities,
     isLoading: isActivitiesLoading,
@@ -89,6 +95,8 @@ const TripDetailPage = () => {
     handleUpdateExpense,
     handleDeleteExpense,
   } = useExpenses(tripId, trip?.costMembers ?? []);
+  // Quỹ chung: số dư luôn tính từ giao dịch quỹ + chi tiêu nên khớp với tab Chi tiêu và Số dư
+  const fund = useFund(tripId, trip, expenses);
   const {
     handleInviteMember,
     handleRemoveMember,
@@ -346,10 +354,10 @@ const TripDetailPage = () => {
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="group flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-2 py-2 font-medium text-on-surface-variant text-sm data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800 sm:flex-none sm:shrink-0 sm:px-4"
+                    className="group flex min-h-11 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-1 py-2 font-medium text-[13px] text-on-surface-variant data-[state=active]:flex-[2.7] data-[state=active]:bg-primary-100 data-[state=active]:text-primary-800 sm:flex-none sm:shrink-0 sm:px-4 sm:text-sm sm:data-[state=active]:flex-none"
                   >
-                    <tab.icon className="h-4 w-4" />
-                    <span className="hidden group-data-[state=active]:inline sm:inline">
+                    <tab.icon className="h-4 w-4 shrink-0" />
+                    <span className="hidden whitespace-nowrap group-data-[state=active]:inline sm:inline">
                       {tab.label}
                     </span>
                   </TabsTrigger>
@@ -405,14 +413,50 @@ const TripDetailPage = () => {
                 onAddExpense={handleAddExpense}
                 onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
+                fund={trip.fund}
+                fundClosed={fund.closed}
+                fundTransactions={fund.transactions}
+                openAddFund={openFundExpense}
+                onOpenAddFundHandled={() => setOpenFundExpense(false)}
+              />
+            </TabsContent>
+            <TabsContent value="fund">
+              <FundTab
+                closed={fund.closed}
+                costMembers={trip.costMembers ?? []}
+                currentUserRole={currentUserRole}
+                expenses={expenses}
+                fund={trip.fund}
+                gap={fund.gap}
+                isLoading={fund.isLoading}
+                loadError={fund.loadError}
+                onReload={fund.reload}
+                ledger={fund.ledger}
+                onClose={fund.handleClose}
+                onCreateTransaction={fund.handleCreateTransaction}
+                onDisable={fund.handleDisable}
+                onEnable={fund.handleEnable}
+                onGoToExpenses={(addFundExpense) => {
+                  setOpenFundExpense(addFundExpense);
+                  setActiveTab("expenses");
+                }}
+                onReopen={fund.handleReopen}
+                onUpdateRequired={fund.handleUpdateRequired}
+                onVoidTransaction={fund.handleVoidTransaction}
+                settlement={fund.settlement}
+                summary={fund.summary}
+                transactions={fund.transactions}
               />
             </TabsContent>
             <TabsContent value="balance">
               <BalanceTab
                 meta={tripMeta}
                 summary={summary}
-                balances={balances}
-                debts={debts}
+                balances={fund.enabled ? fund.balances : balances}
+                debts={fund.enabled ? [] : debts}
+                fundNotice={fund.enabled}
+                fundSettlement={fund.enabled ? fund.settlement : undefined}
+                onGoToFund={() => setActiveTab("fund")}
                 expenses={expenses}
                 tripId={tripId}
                 currentUserRole={currentUserRole}
@@ -430,6 +474,9 @@ const TripDetailPage = () => {
                 tripEndDate={trip.endDate.toDate().toISOString().split("T")[0]}
                 expenses={expenses}
                 balances={balances}
+                fundMembers={fund.transactions
+                  .filter((t) => !t.voidedAt)
+                  .map((t) => t.member)}
                 onAddCostMember={handleAddCostMember}
                 onRemoveCostMember={handleRemoveCostMember}
                 onInviteMember={handleInviteMember}

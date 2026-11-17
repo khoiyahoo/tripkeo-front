@@ -1,11 +1,13 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Info, PiggyBank } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { DebtPaymentButton } from "@/components/atoms/DebtPaymentButton";
 import { DebtPaymentModal } from "@/components/molecules/DebtPaymentModal";
 import { ExpensesPdfExport } from "@/components/organisms/ExpensesPdfExport";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FUND_COPY } from "@/constants/fund";
 import { useDebtPayments } from "@/hooks/useDebtPayments";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,7 @@ import { calculateSettledDebts } from "@/services/debtService";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency } from "@/utils/format";
 import { formatCompactCurrency } from "@/utils/formatCompactCurrency";
+import type { FundSettlementItem } from "@/utils/fundCalc";
 
 import type {
   DebtSettlement,
@@ -35,6 +38,11 @@ interface BalanceTabProps {
   expenses: ExpenseWithId[];
   tripId: string;
   currentUserRole?: TripRole;
+  /** Chuyến dùng quỹ: số dư đã gồm quỹ, tất toán ở tab Quỹ */
+  fundNotice?: boolean;
+  /** Chuyến dùng quỹ: dòng tiền thanh toán qua quỹ (hoàn / thu thêm) thay cho nợ chéo giữa các thành viên */
+  fundSettlement?: FundSettlementItem[];
+  onGoToFund?: () => void;
 }
 
 export const BalanceTab = ({
@@ -45,6 +53,9 @@ export const BalanceTab = ({
   expenses,
   tripId,
   currentUserRole,
+  fundNotice = false,
+  fundSettlement,
+  onGoToFund,
 }: BalanceTabProps) => {
   const { isOwner, isTreasurer } = usePermissions(currentUserRole);
   const canTogglePayment = isOwner || isTreasurer;
@@ -213,6 +224,13 @@ export const BalanceTab = ({
         />
       </div>
 
+      {fundNotice && (
+        <div className="flex items-start gap-2 rounded-xl bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{FUND_COPY.balanceNote}</span>
+        </div>
+      )}
+
       {/* Per-member balances */}
       <Card className="border-none shadow-sm">
         <CardHeader className="pb-3">
@@ -269,6 +287,86 @@ export const BalanceTab = ({
           )}
         </CardContent>
       </Card>
+
+      {/* Ai trả ai — khi dùng quỹ, mọi khoản đều đi qua quỹ chung */}
+      {fundSettlement && (
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Ai trả ai?</CardTitle>
+            <p className="text-on-surface-variant text-xs">
+              Thanh toán qua quỹ chung (hoàn lại hoặc thu thêm).
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {fundSettlement.length === 0 ? (
+              <p className="py-3 text-center text-on-surface-variant text-sm">
+                Không còn khoản nào cần hoàn hoặc thu thêm.
+              </p>
+            ) : (
+              fundSettlement.map((s) => {
+                const refund = s.kind === "refund";
+                const fundLabel = (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-primary-400">
+                      <PiggyBank className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="whitespace-nowrap font-medium text-on-surface text-sm">
+                      Quỹ chung
+                    </span>
+                  </div>
+                );
+                const memberLabel = (
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-semibold text-xs",
+                        refund
+                          ? "bg-success-100 text-success-700"
+                          : "bg-error-100 text-error-700"
+                      )}
+                    >
+                      {s.member[0]?.toUpperCase()}
+                    </div>
+                    <span
+                      className={cn(
+                        "truncate font-medium text-sm",
+                        refund ? "text-success-600" : "text-error-600"
+                      )}
+                    >
+                      {s.member}
+                    </span>
+                  </div>
+                );
+                return (
+                  <div
+                    className="flex flex-col gap-3 rounded-xl border border-outline-variant p-3 sm:flex-row sm:items-center sm:justify-between"
+                    key={`${s.member}-${s.kind}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+                      {refund ? fundLabel : memberLabel}
+                      <ArrowRight className="h-4 w-4 shrink-0 text-on-surface-variant" />
+                      {refund ? memberLabel : fundLabel}
+                    </div>
+                    <span className="shrink-0 font-bold text-on-surface text-sm">
+                      {formatCurrency(s.amount)}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+            {onGoToFund && (
+              <Button
+                className="mt-1 w-full"
+                onClick={onGoToFund}
+                size="sm"
+                variant="outline"
+              >
+                Ghi nhận ở tab Quỹ
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Settlement — who pays whom */}
       {settledDebts.length > 0 && (

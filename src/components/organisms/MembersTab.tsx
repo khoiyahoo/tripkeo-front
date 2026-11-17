@@ -83,6 +83,8 @@ interface MembersTabProps {
   tripEndDate: string;
   expenses: ExpenseWithId[];
   balances?: MemberBalance[];
+  /** Tên các thành viên đã có giao dịch quỹ (không cho xóa khỏi danh sách chia chi phí) */
+  fundMembers?: string[];
   onAddCostMember: (name: string) => Promise<void>;
   onRemoveCostMember: (name: string) => Promise<void>;
   onInviteMember: (input: InviteMemberInput) => Promise<string>;
@@ -108,6 +110,7 @@ export const MembersTab = ({
   tripEndDate,
   expenses,
   balances,
+  fundMembers = [],
   onAddCostMember,
   onRemoveCostMember,
   onInviteMember,
@@ -201,8 +204,15 @@ export const MembersTab = ({
   };
 
   const handleRemoveCostMember = (name: string) => {
+    if (fundMembers.includes(name)) {
+      setCostBlockDialog({
+        title: "🚫 Không thể xóa thành viên",
+        message: `"${name}" đã có giao dịch trong quỹ chung. Hãy hủy các giao dịch quỹ liên quan trước khi xóa.`,
+      });
+      return;
+    }
     const info = getCostMemberExpenseInfo(expenses, name);
-    if (info.hasExpenses && !tripEnded) {
+    if (info.hasExpenses) {
       setCostBlockDialog({
         title: "🚫 Không thể xóa thành viên",
         message: `"${name}" đang có khoản chi tiêu liên quan. Vui lòng xóa hoặc điều chỉnh các khoản chi tiêu liên quan trước.`,

@@ -3,6 +3,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ─── Helpers cho Quỹ chung ──────────────────────
+    function tripDoc(tripId) {
+      return get(/databases/$(database)/documents/trips/$(tripId)).data;
+    }
+    function fundEnabled(tripId) {
+      return 'fund' in tripDoc(tripId) && tripDoc(tripId).fund.get('enabled', false) == true;
+    }
+    function fundClosed(tripId) {
+      return 'fund' in tripDoc(tripId) && tripDoc(tripId).fund.get('closedAt', null) != null;
+    }
+
     // ─── Users ──────────────────────────────────────
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -103,17 +114,71 @@ service cloud.firestore {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
 
+        // Khoản chi từ quỹ (paidFrom == 'fund') chỉ ghi được khi quỹ đang bật và chưa đóng.
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer'];
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer']
+          && request.resource.data.get('paidFrom', 'member') in ['fund', 'member']
+          && (
+            request.resource.data.get('paidFrom', 'member') != 'fund'
+            || (fundEnabled(tripId) && !fundClosed(tripId))
+          );
 
         allow update: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer'];
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer']
+          && request.resource.data.get('paidFrom', 'member') in ['fund', 'member']
+          && (
+            (
+              resource.data.get('paidFrom', 'member') != 'fund'
+              && request.resource.data.get('paidFrom', 'member') != 'fund'
+            )
+            || (fundEnabled(tripId) && !fundClosed(tripId))
+          );
 
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
-          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer'];
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer']
+          && (
+            resource.data.get('paidFrom', 'member') != 'fund'
+            || !fundClosed(tripId)
+          );
+      }
+
+      // ─── Fund transactions (subcollection) ────────
+      // Sổ quỹ chung: thu (contribution) và hoàn (refund).
+      // - Thành viên của chuyến đọc được toàn bộ (minh bạch).
+      // - Chỉ chủ chuyến / thủ quỹ ghi, và chỉ khi quỹ đang bật, chưa đóng.
+      // - Không xóa cứng; chỉ được "hủy" (voidedAt/voidReason) để giữ lịch sử.
+      match /fundTransactions/{transactionId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer']
+          && fundEnabled(tripId)
+          && !fundClosed(tripId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.type in ['contribution', 'refund']
+          && request.resource.data.member is string
+          && request.resource.data.member in tripDoc(tripId).costMembers
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.date is timestamp
+          && request.resource.data.get('method', 'cash') in ['cash', 'bank']
+          && !('voidedAt' in request.resource.data);
+
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid].role in ['owner', 'treasurer']
+          && !fundClosed(tripId)
+          && resource.data.get('voidedAt', null) == null
+          && request.resource.data.get('voidedAt', null) != null
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['voidedAt', 'voidReason', 'updatedAt']);
+
+        allow delete: if false;
       }
 
       // ─── Invitations (subcollection) ──────────────

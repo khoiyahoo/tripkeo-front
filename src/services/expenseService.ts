@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { getOwedPerPerson } from "@/utils/splitCalc";
 
 import type {
   CreateExpenseInput,
@@ -20,7 +21,6 @@ import type {
   ExpenseDoc,
   ExpenseWithId,
   MemberBalance,
-  SplitMethod,
 } from "@/types/firestore";
 
 const expensesRef = (tripId: string) =>
@@ -81,55 +81,8 @@ export const getCostMemberExpenseInfo = (
   };
 };
 
-// ─── Split calculation ───────────────────────────────────────
-
-/**
- * Given an expense, returns a map of uid → amount owed by each participant.
- */
-export function getOwedPerPerson(
-  amount: number,
-  splitBetween: string[],
-  splitMethod: SplitMethod,
-  splitDetails?: Record<string, number>
-): Record<string, number> {
-  const result: Record<string, number> = {};
-  if (splitBetween.length === 0) return result;
-
-  switch (splitMethod) {
-    case "equal": {
-      const share = amount / splitBetween.length;
-      for (const uid of splitBetween) result[uid] = share;
-      break;
-    }
-    case "percentage": {
-      for (const uid of splitBetween) {
-        const pct = splitDetails?.[uid] ?? 0;
-        result[uid] = (amount * pct) / 100;
-      }
-      break;
-    }
-    case "amount": {
-      for (const uid of splitBetween) {
-        result[uid] = splitDetails?.[uid] ?? 0;
-      }
-      break;
-    }
-    case "shares": {
-      const totalShares = splitBetween.reduce(
-        (sum, uid) => sum + (splitDetails?.[uid] ?? 1),
-        0
-      );
-      if (totalShares === 0) break;
-      for (const uid of splitBetween) {
-        const shares = splitDetails?.[uid] ?? 1;
-        result[uid] = (amount * shares) / totalShares;
-      }
-      break;
-    }
-  }
-
-  return result;
-}
+// getOwedPerPerson được tách sang utils/splitCalc (hàm thuần, dùng chung cho quỹ).
+export { getOwedPerPerson };
 
 // ─── CRUD ────────────────────────────────────────────────────
 
@@ -145,7 +98,9 @@ export const createExpense = async (
     amount: input.amount,
     category: input.category,
     date: Timestamp.fromDate(new Date(input.date)),
-    paidBy: input.paidBy,
+    // Chi từ quỹ thì không có người ứng
+    paidBy: input.paidFrom === "fund" ? "" : input.paidBy,
+    paidFrom: input.paidFrom ?? "member",
     splitBetween: input.splitBetween,
     splitMethod: input.splitMethod,
     splitDetails: input.splitDetails ?? {},
@@ -171,7 +126,12 @@ export const updateExpense = async (
   if (data.category !== undefined) updateData.category = data.category;
   if (data.date !== undefined)
     updateData.date = Timestamp.fromDate(new Date(data.date));
-  if (data.paidBy !== undefined) updateData.paidBy = data.paidBy;
+  if (data.paidFrom !== undefined) {
+    updateData.paidFrom = data.paidFrom;
+    if (data.paidFrom === "fund") updateData.paidBy = "";
+  }
+  if (data.paidBy !== undefined && data.paidFrom !== "fund")
+    updateData.paidBy = data.paidBy;
   if (data.splitBetween !== undefined)
     updateData.splitBetween = data.splitBetween;
   if (data.splitMethod !== undefined) updateData.splitMethod = data.splitMethod;
@@ -240,7 +200,8 @@ export const calculateBalances = (
       exp.amount,
       exp.splitBetween ?? [],
       exp.splitMethod ?? "equal",
-      exp.splitDetails
+      exp.splitDetails,
+      costMembers
     );
 
     for (const [name, share] of Object.entries(owedMap)) {

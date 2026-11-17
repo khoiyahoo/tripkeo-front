@@ -1,17 +1,39 @@
-import { Eye, Loader2, Pencil, Plus, Receipt, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+  Eye,
+  Info,
+  Loader2,
+  Lock,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FUND_COPY } from "@/constants/fund";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
 import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
+import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
 
 import { AddExpenseForm } from "./AddExpenseForm";
 import type {
   CreateExpenseInput,
   ExpenseWithId,
+  FundConfig,
+  FundTransactionWithId,
   TripMemberInfo,
   TripRole,
 } from "@/types/firestore";
@@ -39,6 +61,13 @@ interface ExpensesTabProps {
     data: Partial<CreateExpenseInput>
   ) => Promise<void>;
   onDeleteExpense: (expenseId: string) => Promise<void>;
+  /** Quỹ chung của chuyến (nếu đã bật) — dùng để gắn nhãn và cảnh báo ảnh hưởng */
+  fund?: FundConfig;
+  fundClosed?: boolean;
+  fundTransactions?: FundTransactionWithId[];
+  /** Tab Quỹ yêu cầu mở sẵn form thêm chi tiêu */
+  openAddFund?: boolean;
+  onOpenAddFundHandled?: () => void;
 }
 
 // ─── Category breakdown ──────────────────────────────────────
@@ -101,9 +130,26 @@ export const ExpensesTab = ({
   onAddExpense,
   onUpdateExpense,
   onDeleteExpense,
+  fund,
+  fundClosed = false,
+  fundTransactions = [],
+  openAddFund = false,
+  onOpenAddFundHandled,
 }: ExpensesTabProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [impact, setImpact] = useState<{
+    before: number;
+    after: number;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+
+  const fundOn = !!fund?.enabled;
+  const fundAvailable = fundOn && !fundClosed;
+  // Quỹ chưa có ai đóng thì chưa cho chi từ quỹ
+  const fundHasContributions = fundTransactions.some(
+    (t) => t.type === "contribution" && !t.voidedAt
+  );
 
   const canEdit =
     currentUserRole === "owner" || currentUserRole === "treasurer";
@@ -115,11 +161,79 @@ export const ExpensesTab = ({
       ? (expenses.find((e) => e.id === editingExpenseId) ?? null)
       : null;
 
+  // Tab Quỹ bấm "Thêm chi từ quỹ" → mở sẵn form thêm
+  useEffect(() => {
+    if (!openAddFund) return;
+    if (canEdit) {
+      setEditingExpenseId(null);
+      setIsAdding(true);
+    }
+    onOpenAddFundHandled?.();
+  }, [openAddFund, canEdit, onOpenAddFundHandled]);
+
+  /** Hộp xác nhận "số dư quỹ trước → sau"; trả về false nếu người dùng không đồng ý. */
+  const confirmFundImpact = (change: ExpenseChange): Promise<boolean> => {
+    if (!fund) return Promise.resolve(true);
+    const { before, after } = previewFundBalance({
+      config: fund,
+      members: costMembers,
+      transactions: fundTransactions,
+      expenses,
+      change,
+    });
+    if (before === after) return Promise.resolve(true);
+    return new Promise((resolve) => setImpact({ before, after, resolve }));
+  };
+
+  const closeImpact = (ok: boolean) => {
+    impact?.resolve(ok);
+    setImpact(null);
+  };
+
   const handleEditSubmit = async (input: CreateExpenseInput): Promise<void> => {
-    if (!editingExpenseId) return;
+    if (!editingExpenseId || !editingExpense) return;
+    const touchesFund =
+      fundOn &&
+      (editingExpense.paidFrom === "fund" || input.paidFrom === "fund");
+    if (touchesFund) {
+      const ok = await confirmFundImpact({
+        type: "upsert",
+        expense: {
+          id: editingExpense.id,
+          amount: input.amount,
+          paidBy: input.paidBy,
+          paidFrom: input.paidFrom ?? editingExpense.paidFrom,
+          splitBetween: input.splitBetween,
+          splitMethod: input.splitMethod,
+          splitDetails: input.splitDetails,
+        },
+      });
+      if (!ok) throw new Error("cancelled");
+    }
     await onUpdateExpense(editingExpenseId, input);
     setEditingExpenseId(null);
   };
+
+  const handleDelete = async (expense: ExpenseWithId): Promise<void> => {
+    if (fundOn && expense.paidFrom === "fund") {
+      const ok = await confirmFundImpact({ type: "remove", id: expense.id });
+      if (!ok) return;
+    }
+    try {
+      await onDeleteExpense(expense.id);
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Không thể xóa chi tiêu. Vui lòng thử lại."
+      );
+    }
+  };
+
+  const spentFromFund = expenses
+    .filter((e) => e.paidFrom === "fund")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const spentPersonal = summary.totalSpent - spentFromFund;
 
   if (isLoading) {
     return (
@@ -207,11 +321,25 @@ export const ExpensesTab = ({
           )}
         </CardHeader>
         <CardContent>
+          {fundOn && (
+            <div className="mb-4 space-y-1.5 rounded-xl bg-surface-dim px-3 py-2.5 text-sm">
+              <p className="text-on-surface">
+                Chi từ quỹ <b>{formatCurrency(spentFromFund)}</b> · Cá nhân ứng{" "}
+                <b>{formatCurrency(spentPersonal)}</b>
+              </p>
+              <p className="flex items-start gap-1.5 text-on-surface-variant text-xs">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {FUND_COPY.expenseListNote}
+              </p>
+            </div>
+          )}
           {isAdding && canEdit && (
             <div className="mb-4">
               <AddExpenseForm
                 key="new"
                 costMembers={costMembers}
+                fundAvailable={fundAvailable}
+                fundHasContributions={fundHasContributions}
                 onSubmit={onAddExpense}
                 onCancel={() => setIsAdding(false)}
               />
@@ -223,6 +351,8 @@ export const ExpensesTab = ({
               <AddExpenseForm
                 key={editingExpense.id}
                 costMembers={costMembers}
+                fundAvailable={fundAvailable}
+                fundHasContributions={fundHasContributions}
                 initialData={editingExpense}
                 onSubmit={handleEditSubmit}
                 onCancel={() => setEditingExpenseId(null)}
@@ -238,6 +368,9 @@ export const ExpensesTab = ({
                 const isEditing = editingExpenseId === expense.id;
                 const methodLabel =
                   SPLIT_METHOD_LABELS[expense.splitMethod ?? "equal"];
+                const fromFund = expense.paidFrom === "fund";
+                // Quỹ đã đóng thì khóa sửa/xóa các khoản chi từ quỹ (khớp quy tắc Firestore)
+                const locked = fromFund && fundClosed;
 
                 return (
                   <div
@@ -257,19 +390,35 @@ export const ExpensesTab = ({
                       <Receipt className={cn("h-4 w-4", config.color)} />
                     </div>
                     <div className="min-w-0 flex-1 basis-0">
-                      <p className="truncate font-medium text-on-surface-variant text-sm">
-                        {expense.description}
+                      <p className="flex items-center gap-1.5 font-medium text-on-surface-variant text-sm">
+                        <span className="truncate">{expense.description}</span>
+                        {fromFund && (
+                          <span className="shrink-0 rounded-full bg-primary-500/15 px-2 py-0.5 font-medium text-primary-400 text-xs">
+                            Quỹ
+                          </span>
+                        )}
                       </p>
                       <p className="text-on-surface-variant text-xs">
                         {timestampToDateStr(expense.date)} ·{" "}
-                        {expense.paidBy || "?"} trả · chia {methodLabel} (
-                        {splitCount} người)
+                        {fromFund
+                          ? "Chi từ quỹ"
+                          : `${expense.paidBy || "?"} trả`}{" "}
+                        · chia {methodLabel} ({splitCount} người)
                       </p>
                     </div>
                     <span className="shrink-0 font-semibold text-on-surface text-sm">
                       {formatCurrency(expense.amount)}
                     </span>
-                    {canEdit && (
+                    {canEdit && locked && (
+                      <span
+                        className="flex shrink-0 basis-full items-center justify-end gap-1 text-on-surface-variant text-xs sm:basis-auto"
+                        title="Quỹ đã đóng"
+                      >
+                        <Lock className="h-3.5 w-3.5" />
+                        Quỹ đã đóng
+                      </span>
+                    )}
+                    {canEdit && !locked && (
                       <div className="flex shrink-0 basis-full justify-end gap-0.5 transition-opacity sm:basis-auto sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <Button
                           variant="ghost"
@@ -286,7 +435,7 @@ export const ExpensesTab = ({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => onDeleteExpense(expense.id)}
+                          onClick={() => handleDelete(expense)}
                         >
                           <Trash2 className="h-3.5 w-3.5 text-error-500" />
                         </Button>
@@ -303,6 +452,27 @@ export const ExpensesTab = ({
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!impact} onOpenChange={(o) => !o && closeImpact(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{FUND_COPY.impactTitle}</DialogTitle>
+            <DialogDescription>
+              {impact &&
+                FUND_COPY.impactBody(
+                  formatCurrency(impact.before),
+                  formatCurrency(impact.after)
+                )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button onClick={() => closeImpact(false)} variant="outline">
+              Hủy
+            </Button>
+            <Button onClick={() => closeImpact(true)}>Tiếp tục</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

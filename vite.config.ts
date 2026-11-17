@@ -8,7 +8,8 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    tsconfigPaths(),
+    // Chỉ dùng tsconfig của web, không quét mobile/tsconfig.json (extends gói expo)
+    tsconfigPaths({ projects: ["./tsconfig.json"] }),
     VitePWA({
       // Tự cập nhật service worker khi deploy bản mới
       registerType: "autoUpdate",
