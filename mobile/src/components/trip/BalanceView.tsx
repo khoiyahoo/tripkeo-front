@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
-import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 
+import { ExpensesPdfActions } from "@/components/trip/ExpensesPdfActions";
 import { Card, Empty, Initial, StatCard } from "@/components/trip/ui";
 import { useDebtPayments } from "@/hooks/useDebtPayments";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,12 @@ import { buildBalanceView } from "@/utils/balance";
 import { formatCurrency } from "@/utils/format";
 
 import type { ExpenseSummary } from "@/services/expenseService";
-import type { DebtSettlement, MemberBalance } from "@/types/firestore";
+import type {
+  DebtSettlement,
+  ExpenseWithId,
+  MemberBalance,
+} from "@/types/firestore";
+import type { PdfTripMeta } from "@/utils/pdfExport";
 
 interface Props {
   tripId: string;
@@ -18,11 +23,8 @@ interface Props {
   balances: MemberBalance[];
   debts: DebtSettlement[];
   canTogglePayment: boolean;
-  /** Nhận các khoản nợ chưa trả (đã điều chỉnh) để đưa vào PDF */
-  onExport: (
-    balances: MemberBalance[],
-    debts: DebtSettlement[]
-  ) => Promise<void>;
+  meta: PdfTripMeta;
+  expenses: ExpenseWithId[];
 }
 
 export const BalanceView = ({
@@ -31,9 +33,9 @@ export const BalanceView = ({
   balances,
   debts,
   canTogglePayment,
-  onExport,
+  meta,
+  expenses,
 }: Props) => {
-  const [isExporting, setIsExporting] = useState(false);
   const {
     paymentHistory,
     settlementStatuses,
@@ -68,20 +70,6 @@ export const BalanceView = ({
     [balances, debts, paymentHistory, settlementStatuses]
   );
 
-  const doExport = async () => {
-    setIsExporting(true);
-    try {
-      await onExport(
-        adjustedBalances,
-        settledDebts.filter((d) => !isPaid(d))
-      );
-    } catch {
-      Alert.alert("Lỗi", "Không thể xuất PDF. Vui lòng thử lại.");
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   return (
     <View className="gap-4">
       <View className="flex-row gap-3">
@@ -96,18 +84,14 @@ export const BalanceView = ({
         />
       </View>
 
-      <Pressable
-        className="h-11 flex-row items-center justify-center gap-2 rounded-xl border border-outline-variant active:opacity-70"
-        disabled={isExporting}
-        onPress={doExport}
-      >
-        {isExporting ? (
-          <ActivityIndicator color="#abbbc2" />
-        ) : (
-          <Ionicons color="#abbbc2" name="document-text-outline" size={18} />
-        )}
-        <Text className="font-medium text-on-surface">Xuất PDF chi tiêu</Text>
-      </Pressable>
+      <ExpensesPdfActions
+        balances={balances}
+        debts={debts}
+        expenses={expenses}
+        meta={meta}
+        summary={summary}
+        tripId={tripId}
+      />
 
       <Card title="Số dư từng người">
         {adjustedBalances.length === 0 ? (

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { runBlocking } from "@/lib/blocking";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -68,7 +69,7 @@ export default function CommunityScreen() {
         text: "Xóa",
         style: "destructive",
         onPress: () =>
-          deletePost(post.id)
+          runBlocking(() => deletePost(post.id))
             .then(() => refetch())
             .catch(() => Alert.alert("Lỗi", "Không thể xóa bài viết")),
       },

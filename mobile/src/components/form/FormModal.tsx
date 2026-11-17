@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { LoadingCover } from "@/components/BlockingOverlay";
+
 import type { ReactNode } from "react";
 
 interface Props {
@@ -38,7 +40,7 @@ export const FormModal = ({
 }: Props) => (
   <Modal
     animationType="slide"
-    onRequestClose={onClose}
+    onRequestClose={isSubmitting ? undefined : onClose}
     presentationStyle="pageSheet"
     visible={visible}
   >
@@ -51,7 +53,7 @@ export const FormModal = ({
           <Text className="font-semibold text-base text-on-surface">
             {title}
           </Text>
-          <Pressable hitSlop={12} onPress={onClose}>
+          <Pressable disabled={isSubmitting} hitSlop={12} onPress={onClose}>
             <Ionicons color="#abbbc2" name="close" size={24} />
           </Pressable>
         </View>
@@ -76,6 +78,7 @@ export const FormModal = ({
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      {isSubmitting && <LoadingCover />}
     </SafeAreaView>
   </Modal>
 );

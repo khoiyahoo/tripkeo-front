@@ -63,8 +63,9 @@ function toPost(snap: DocumentSnapshot): CommunityPost | null {
   return {
     ...d,
     id: snap.id,
-    createdAt: d.createdAt.toDate(),
-    updatedAt: d.updatedAt.toDate(),
+    // serverTimestamp() chưa được server xác nhận thì giá trị tạm là null
+    createdAt: d.createdAt?.toDate() ?? new Date(),
+    updatedAt: d.updatedAt?.toDate() ?? new Date(),
   };
 }
 
@@ -73,7 +74,7 @@ function toComment(snap: DocumentSnapshot): Comment {
   return {
     ...d,
     id: snap.id,
-    createdAt: d.createdAt.toDate(),
+    createdAt: d.createdAt?.toDate() ?? new Date(),
     updatedAt: d.updatedAt ? d.updatedAt.toDate() : null,
   };
 }

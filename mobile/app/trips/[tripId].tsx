@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -17,11 +18,7 @@ import { ExpensesView } from "@/components/trip/ExpensesView";
 import { ItineraryView } from "@/components/trip/ItineraryView";
 import { EditTripModal } from "@/components/trip/EditTripModal";
 import { MembersView } from "@/components/trip/MembersView";
-import {
-  buildExpensesHtml,
-  buildItineraryHtml,
-  exportPdf,
-} from "@/utils/pdfExport";
+import { buildItineraryHtml } from "@/utils/pdfExport";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useItinerary } from "@/hooks/useItinerary";
 import { useTripMembers } from "@/hooks/useMembers";
@@ -138,8 +135,10 @@ export default function TripDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              if (postCount > 0) await deletePostsByTripId(tripId);
-              await deleteTrip(tripId);
+              await runBlocking(async () => {
+                if (postCount > 0) await deletePostsByTripId(tripId);
+                await deleteTrip(tripId);
+              }, LONG_TIMEOUT_MS);
               router.replace("/trips");
             } catch {
               Alert.alert("Lỗi", "Không thể xóa chuyến đi. Vui lòng thử lại.");
@@ -293,11 +292,8 @@ export default function TripDetailScreen() {
               isLoading={activitiesLoading}
               onAdd={handleAddActivity}
               onDelete={handleDeleteActivity}
-              onExport={() =>
-                exportPdf(
-                  buildItineraryHtml(pdfMeta!, days, activities),
-                  "Lịch trình chuyến đi"
-                )
+              buildPdfHtml={() =>
+                buildItineraryHtml(pdfMeta!, days, activities)
               }
               onReorder={handleBatchUpdateOrders}
               onUpdate={handleUpdateActivity}
@@ -312,14 +308,18 @@ export default function TripDetailScreen() {
               currentUserRole={role}
               expenses={expenses}
               members={trip.members}
-              onAddCostMember={(name) => addCostMember(tripId, name)}
+              onAddCostMember={(name) =>
+                runBlocking(() => addCostMember(tripId, name))
+              }
               onCancelInvitation={members.handleCancelInvitation}
               onCheckDuplicate={members.handleCheckDuplicate}
               onCreateShareLink={members.handleCreateShareLink}
               onInviteMember={members.handleInviteMember}
               onLeaveTrip={members.handleLeaveTrip}
               onLeft={() => router.replace("/trips")}
-              onRemoveCostMember={(name) => removeCostMember(tripId, name)}
+              onRemoveCostMember={(name) =>
+                runBlocking(() => removeCostMember(tripId, name))
+              }
               onRemoveMember={members.handleRemoveMember}
               onUpdateRole={members.handleUpdateRole}
               tripEndDate={trip.endDate.toDate().toISOString().split("T")[0]}
@@ -327,7 +327,11 @@ export default function TripDetailScreen() {
           )}
           {tab === "expenses" && (
             <ExpensesView
+              balances={balances}
               canEdit={perms.canEditExpenses}
+              debts={debts}
+              meta={pdfMeta!}
+              tripId={tripId}
               costMembers={trip.costMembers ?? []}
               expenses={expenses}
               isLoading={expensesLoading}
@@ -342,18 +346,8 @@ export default function TripDetailScreen() {
               balances={balances}
               canTogglePayment={perms.isOwner || perms.isTreasurer}
               debts={debts}
-              onExport={(adjBalances, unpaidDebts) =>
-                exportPdf(
-                  buildExpensesHtml(
-                    pdfMeta!,
-                    expenses,
-                    summary,
-                    adjBalances,
-                    unpaidDebts
-                  ),
-                  "Báo cáo chi tiêu"
-                )
-              }
+              expenses={expenses}
+              meta={pdfMeta!}
               summary={summary}
               tripId={tripId}
             />

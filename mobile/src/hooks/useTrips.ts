@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { blocking } from "@/lib/blocking";
 import { createTrip, subscribeToUserTrips } from "@/services/tripService";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -54,5 +55,11 @@ export const useTrips = (): UseTripsResult => {
     [user]
   );
 
-  return { trips, isLoading, error, handleCreateTrip };
+  return {
+    trips,
+    isLoading,
+    error,
+    // gồm cả gửi lời mời nên cho thời gian chờ dài hơn
+    handleCreateTrip: blocking(handleCreateTrip, 45_000),
+  };
 };

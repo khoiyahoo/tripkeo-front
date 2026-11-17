@@ -10,6 +10,13 @@ import {
   View,
 } from "react-native";
 
+import {
+  Sortable,
+  SortableItem,
+  type SortableRenderItemProps,
+} from "react-native-reanimated-dnd";
+
+import { PdfActions } from "@/components/PdfActions";
 import { ActivityFormModal } from "@/components/trip/ActivityFormModal";
 
 import { Card, Empty } from "@/components/trip/ui";
@@ -23,6 +30,8 @@ import {
 
 import type { ActivityWithId, CreateActivityInput } from "@/types/firestore";
 
+const REORDER_ITEM_H = 72;
+
 interface Props {
   days: { dayNumber: number; date: string }[];
   activities: ActivityWithId[];
@@ -34,7 +43,7 @@ interface Props {
   onReorder: (
     updates: { id: string; order: number; startTime?: string; date?: string }[]
   ) => Promise<void>;
-  onExport: () => Promise<void>;
+  buildPdfHtml: () => string;
 }
 
 export const ItineraryView = ({
@@ -46,9 +55,8 @@ export const ItineraryView = ({
   onUpdate,
   onDelete,
   onReorder,
-  onExport,
+  buildPdfHtml,
 }: Props) => {
-  const [isExporting, setIsExporting] = useState(false);
   const [selected, setSelected] = useState<string | undefined>(days[0]?.date);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ActivityWithId | null>(null);
@@ -58,7 +66,13 @@ export const ItineraryView = ({
       .filter((a) => a.date === date)
       .reduce((max, a) => Math.max(max, a.order), -1) + 1;
 
-  const move = (id: string, index: number, delta: -1 | 1) => {
+  const [reordering, setReordering] = useState(false);
+
+  // Thoát chế độ sắp xếp khi đổi ngày
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chỉ phụ thuộc ngày đang chọn
+  useEffect(() => setReordering(false), [selected]);
+
+  const onDrop = (id: string, position: number) => {
     if (!selected) return;
     const byDate: Record<string, ActivityWithId[]> = {};
     for (const a of activities) (byDate[a.date] ??= []).push(a);
@@ -66,23 +80,12 @@ export const ItineraryView = ({
       activitiesByDate: byDate,
       activeId: id,
       targetDate: selected,
-      targetIndex: index + delta,
+      targetIndex: position,
     });
     if (!result) return;
     onReorder(result.updates).catch(() =>
       Alert.alert("Lỗi", "Không thể thay đổi thứ tự. Vui lòng thử lại.")
     );
-  };
-
-  const doExport = async () => {
-    setIsExporting(true);
-    try {
-      await onExport();
-    } catch {
-      Alert.alert("Lỗi", "Không thể xuất PDF. Vui lòng thử lại.");
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const confirmDelete = (a: ActivityWithId) =>
@@ -163,20 +166,50 @@ export const ItineraryView = ({
         })}
       </ScrollView>
 
-      <Pressable
-        className="h-11 flex-row items-center justify-center gap-2 rounded-xl border border-outline-variant active:opacity-70"
-        disabled={isExporting}
-        onPress={doExport}
-      >
-        {isExporting ? (
-          <ActivityIndicator color="#abbbc2" />
-        ) : (
-          <Ionicons color="#abbbc2" name="document-text-outline" size={18} />
-        )}
-        <Text className="font-medium text-on-surface">Xuất PDF lịch trình</Text>
-      </Pressable>
+      <PdfActions
+        buildHtml={buildPdfHtml}
+        guard={() => {
+          if (activities.length === 0)
+            return "Lịch trình chưa có hoạt động nào. Vui lòng thêm hoạt động trước khi xuất PDF.";
+          const empty = days.filter(
+            (d) => !activities.some((a) => a.date === d.date)
+          );
+          if (empty.length > 0)
+            return `Vui lòng điền đầy đủ hoạt động các ngày trước khi xem (${empty
+              .map((d) => `Ngày ${d.dayNumber}`)
+              .join(", ")} chưa có hoạt động).`;
+          return null;
+        }}
+        shareTitle="Lịch trình chuyến đi"
+      />
 
-      {canEdit && (
+      {canEdit && dayActivities.length > 1 && (
+        <Pressable
+          className={cn(
+            "h-11 flex-row items-center justify-center gap-2 rounded-xl border active:opacity-70",
+            reordering
+              ? "border-primary-500 bg-primary-500/15"
+              : "border-outline-variant"
+          )}
+          onPress={() => setReordering((v) => !v)}
+        >
+          <Ionicons
+            color={reordering ? "#eb5757" : "#abbbc2"}
+            name={reordering ? "checkmark" : "swap-vertical"}
+            size={18}
+          />
+          <Text
+            className={cn(
+              "font-medium",
+              reordering ? "text-primary-500" : "text-on-surface"
+            )}
+          >
+            {reordering ? "Xong" : "Sắp xếp thứ tự"}
+          </Text>
+        </Pressable>
+      )}
+
+      {canEdit && !reordering && (
         <Pressable
           className="h-12 flex-row items-center justify-center gap-2 rounded-xl bg-primary-500 active:bg-primary-600"
           onPress={() => {
@@ -193,110 +226,155 @@ export const ItineraryView = ({
         <Empty text="Đang tải lịch trình..." />
       ) : dayActivities.length === 0 ? (
         <Empty text="Chưa có hoạt động nào cho ngày này" />
-      ) : (
-        dayActivities.map((a, idx) => {
-          const cfg =
-            ACTIVITY_TYPE_CONFIG[a.category] ?? ACTIVITY_TYPE_CONFIG.other;
-          return (
-            <Card key={a.id}>
-              <View className="flex-row items-center gap-3">
+      ) : reordering ? (
+        <Sortable
+          data={dayActivities}
+          itemHeight={REORDER_ITEM_H}
+          renderItem={({
+            item,
+            id,
+            ...rest
+          }: SortableRenderItemProps<ActivityWithId>) => {
+            const cfg =
+              ACTIVITY_TYPE_CONFIG[item.category] ?? ACTIVITY_TYPE_CONFIG.other;
+            return (
+              <SortableItem
+                data={item}
+                id={id}
+                key={id}
+                onDrop={(movedId, position) => onDrop(movedId, position)}
+                {...rest}
+              >
                 <View
-                  className={cn(
-                    "h-10 w-10 items-center justify-center rounded-xl",
-                    cfg.bgColor
-                  )}
+                  className="mb-2 flex-row items-center gap-3 rounded-2xl bg-surface-card px-3"
+                  style={{ height: REORDER_ITEM_H - 8 }}
                 >
-                  <Text className="text-lg">{cfg.icon}</Text>
+                  <SortableItem.Handle>
+                    <View className="h-10 w-8 items-center justify-center">
+                      <Ionicons
+                        color="#abbbc2"
+                        name="reorder-three"
+                        size={26}
+                      />
+                    </View>
+                  </SortableItem.Handle>
+                  <View
+                    className={cn(
+                      "h-9 w-9 items-center justify-center rounded-xl",
+                      cfg.bgColor
+                    )}
+                  >
+                    <Text>{cfg.icon}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className="font-medium text-on-surface"
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text className="text-on-surface-variant text-xs">
+                      {item.startTime ?? "—:—"}
+                      {item.endTime ? ` – ${item.endTime}` : ""}
+                    </Text>
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Text className="font-semibold text-on-surface">
-                    {a.title}
-                  </Text>
-                  <Text className="text-on-surface-variant text-xs">
-                    {a.startTime ?? "—:—"}
-                    {a.endTime ? ` – ${a.endTime}` : ""} · {cfg.label}
-                  </Text>
-                </View>
-                {canEdit && (
-                  <View className="flex-row items-center gap-3">
-                    <View className="items-center">
+              </SortableItem>
+            );
+          }}
+          style={{
+            height: dayActivities.length * REORDER_ITEM_H,
+            backgroundColor: "transparent",
+          }}
+        />
+      ) : (
+        <View className="gap-3">
+          {dayActivities.map((a) => {
+            const cfg =
+              ACTIVITY_TYPE_CONFIG[a.category] ?? ACTIVITY_TYPE_CONFIG.other;
+            return (
+              <Card key={a.id}>
+                <View className="flex-row items-center gap-3">
+                  <View
+                    className={cn(
+                      "h-10 w-10 items-center justify-center rounded-xl",
+                      cfg.bgColor
+                    )}
+                  >
+                    <Text className="text-lg">{cfg.icon}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-on-surface">
+                      {a.title}
+                    </Text>
+                    <Text className="text-on-surface-variant text-xs">
+                      {a.startTime ?? "—:—"}
+                      {a.endTime ? ` – ${a.endTime}` : ""} · {cfg.label}
+                    </Text>
+                  </View>
+                  {canEdit && (
+                    <View className="flex-row items-center gap-3">
                       <Pressable
-                        disabled={idx === 0}
-                        hitSlop={6}
-                        onPress={() => move(a.id, idx, -1)}
-                        style={{ opacity: idx === 0 ? 0.25 : 1 }}
-                      >
-                        <Ionicons color="#abbbc2" name="chevron-up" size={18} />
-                      </Pressable>
-                      <Pressable
-                        disabled={idx === dayActivities.length - 1}
-                        hitSlop={6}
-                        onPress={() => move(a.id, idx, 1)}
-                        style={{
-                          opacity: idx === dayActivities.length - 1 ? 0.25 : 1,
+                        hitSlop={8}
+                        onPress={() => {
+                          setEditing(a);
+                          setFormOpen(true);
                         }}
                       >
                         <Ionicons
-                          color="#abbbc2"
-                          name="chevron-down"
+                          color="#eb5757"
+                          name="create-outline"
+                          size={18}
+                        />
+                      </Pressable>
+                      <Pressable hitSlop={8} onPress={() => confirmDelete(a)}>
+                        <Ionicons
+                          color="#eb5757"
+                          name="trash-outline"
                           size={18}
                         />
                       </Pressable>
                     </View>
-                    <Pressable
-                      hitSlop={8}
-                      onPress={() => {
-                        setEditing(a);
-                        setFormOpen(true);
-                      }}
-                    >
-                      <Ionicons
-                        color="#eb5757"
-                        name="create-outline"
-                        size={18}
-                      />
-                    </Pressable>
-                    <Pressable hitSlop={8} onPress={() => confirmDelete(a)}>
-                      <Ionicons
-                        color="#eb5757"
-                        name="trash-outline"
-                        size={18}
-                      />
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-              {(a.location || a.mapsUrl) && (
-                <Pressable
-                  className="flex-row items-center gap-1.5"
-                  disabled={!a.mapsUrl}
-                  onPress={() => a.mapsUrl && Linking.openURL(a.mapsUrl)}
-                >
-                  <Ionicons color="#abbbc2" name="location-outline" size={14} />
-                  <Text
-                    className={cn(
-                      "flex-1 text-sm",
-                      a.mapsUrl ? "text-primary-400" : "text-on-surface-variant"
-                    )}
-                    numberOfLines={1}
+                  )}
+                </View>
+                {(a.location || a.mapsUrl) && (
+                  <Pressable
+                    className="flex-row items-center gap-1.5"
+                    disabled={!a.mapsUrl}
+                    onPress={() => a.mapsUrl && Linking.openURL(a.mapsUrl)}
                   >
-                    {a.location || "Xem bản đồ"}
+                    <Ionicons
+                      color="#abbbc2"
+                      name="location-outline"
+                      size={14}
+                    />
+                    <Text
+                      className={cn(
+                        "flex-1 text-sm",
+                        a.mapsUrl
+                          ? "text-primary-400"
+                          : "text-on-surface-variant"
+                      )}
+                      numberOfLines={1}
+                    >
+                      {a.location || "Xem bản đồ"}
+                    </Text>
+                  </Pressable>
+                )}
+                {a.note ? (
+                  <Text className="text-on-surface-variant text-sm">
+                    {a.note}
                   </Text>
-                </Pressable>
-              )}
-              {a.note ? (
-                <Text className="text-on-surface-variant text-sm">
-                  {a.note}
-                </Text>
-              ) : null}
-              {a.cost !== undefined && a.cost > 0 && (
-                <Text className="font-medium text-on-surface text-sm">
-                  {formatCurrency(a.cost)}
-                </Text>
-              )}
-            </Card>
-          );
-        })
+                ) : null}
+                {a.cost !== undefined && a.cost > 0 && (
+                  <Text className="font-medium text-on-surface text-sm">
+                    {formatCurrency(a.cost)}
+                  </Text>
+                )}
+              </Card>
+            );
+          })}
+        </View>
       )}
     </View>
   );

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { blocking } from "@/lib/blocking";
 import { useState } from "react";
 
 import {
@@ -162,9 +163,9 @@ export const useDebtPayments = ({ tripId }: UseDebtPaymentsProps) => {
     selectedDebt,
     settlementStatuses,
     handleOpenPaymentModal,
-    handlePaymentConfirm,
-    handleUndoPayment,
-    handleToggleSettlementPaid,
+    handlePaymentConfirm: blocking(handlePaymentConfirm),
+    handleUndoPayment: blocking(handleUndoPayment),
+    handleToggleSettlementPaid: blocking(handleToggleSettlementPaid),
     isRecording: recordPaymentMutation.isPending,
     isUndoing: undoPaymentMutation.isPending,
     isTogglingSettlement: toggleSettlementMutation.isPending,

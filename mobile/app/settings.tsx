@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
     }
     setIsLinking(true);
     try {
-      await unlinkFromGoogle();
+      await runBlocking(() => unlinkFromGoogle());
       refreshUser();
       Alert.alert("Thành công", "Đã ngắt kết nối tài khoản Google");
     } catch {
@@ -80,9 +81,12 @@ export default function SettingsScreen() {
     setIsDeleting(true);
     try {
       // 1) Dọn dữ liệu Firestore khi phiên còn hợp lệ, 2) xóa tài khoản Auth
-      await deleteUserData(user.uid, user.email ?? "");
+      await runBlocking(
+        () => deleteUserData(user.uid, user.email ?? ""),
+        LONG_TIMEOUT_MS
+      );
       try {
-        await deleteFirebaseAccount();
+        await runBlocking(() => deleteFirebaseAccount());
       } catch (err) {
         const code =
           err instanceof Error && "code" in err
@@ -94,7 +98,7 @@ export default function SettingsScreen() {
           setIsDeleting(false);
           return;
         }
-        await deleteFirebaseAccount();
+        await runBlocking(() => deleteFirebaseAccount());
       }
       // Auth state đổi -> app tự quay về màn đăng nhập
     } catch {

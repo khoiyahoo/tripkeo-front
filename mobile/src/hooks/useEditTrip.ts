@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 
+import { blocking } from "@/lib/blocking";
 import { batchUpdateAndDeleteActivities } from "@/services/itineraryService";
 import { updateTrip } from "@/services/tripService";
 
@@ -92,5 +93,5 @@ export const useEditTrip = (): UseEditTripResult => {
     []
   );
 
-  return { handleSave };
+  return { handleSave: blocking(handleSave, 45_000) };
 };

@@ -6,7 +6,7 @@ import {
   getReactNativePersistence,
   initializeAuth,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 
 // Cùng project Firebase với web để đồng bộ dữ liệu (Auth + Firestore).
 const firebaseConfig = {
@@ -31,4 +31,9 @@ export const auth =
       })
     : getAuth(app);
 
-export const db = getFirestore(app);
+// Firestore JS SDK trên React Native thường treo khi dùng WebChannel streaming
+// (ghi không bao giờ được xác nhận), nên ép dùng long polling. initializeFirestore
+// chỉ được gọi một lần; Fast Refresh chạy lại module thì dùng getFirestore.
+export const db = isFirstInit
+  ? initializeFirestore(app, { experimentalForceLongPolling: true })
+  : getFirestore(app);

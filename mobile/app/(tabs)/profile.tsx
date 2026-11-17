@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { runBlocking } from "@/lib/blocking";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -49,7 +50,7 @@ export default function ProfileScreen() {
     setIsSaving(true);
     setError(null);
     try {
-      await updateDisplayName(user.uid, trimmed);
+      await runBlocking(() => updateDisplayName(user.uid, trimmed));
       refreshUser();
       setEditOpen(false);
     } catch {

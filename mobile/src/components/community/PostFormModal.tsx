@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { Field, Input, SingleChips } from "@/components/form/fields";
 import { FormModal } from "@/components/form/FormModal";
 import { uploadImages } from "@/services/cloudinaryService";
@@ -242,52 +243,54 @@ export const PostFormModal = ({
     setIsSubmitting(true);
     setError(null);
     try {
-      const uploaded =
-        newImages.length > 0 ? await uploadImages(newImages) : [];
-      const imageUrls = [...existingUrls, ...uploaded];
-      const destination =
-        trips.find((t) => t.id === tripId)?.destination ??
-        editPost?.destination ??
-        "";
-      const itinerarySnapshot = await buildItinerarySnapshot();
-      const expenseSnapshot = await buildExpenseSnapshot();
+      await runBlocking(async () => {
+        const uploaded =
+          newImages.length > 0 ? await uploadImages(newImages) : [];
+        const imageUrls = [...existingUrls, ...uploaded];
+        const destination =
+          trips.find((t) => t.id === tripId)?.destination ??
+          editPost?.destination ??
+          "";
+        const itinerarySnapshot = await buildItinerarySnapshot();
+        const expenseSnapshot = await buildExpenseSnapshot();
 
-      if (isEdit && editPost) {
-        const input: UpdatePostInput = {
-          title: title.trim(),
-          content: content.trim(),
-          tripId: tripId || undefined,
-          destination,
-          region,
-          imageUrls,
-          includeItinerary,
-          includeExpenses,
-          itinerarySnapshot,
-          expenseSnapshot,
-        };
-        await updatePost(editPost.id, input);
-        onSuccess(editPost.id, true);
-      } else {
-        const input: CreatePostInput = {
-          title: title.trim(),
-          content: content.trim(),
-          tripId: tripId || undefined,
-          destination,
-          region,
-          imageUrls,
-          includeItinerary,
-          includeExpenses,
-          itinerarySnapshot,
-          expenseSnapshot,
-        };
-        const postId = await createPost(
-          input,
-          user.uid,
-          user.displayName ?? "Ẩn danh",
-          user.photoURL ?? ""
-        );
-        onSuccess(postId, false);
-      }
+        if (isEdit && editPost) {
+          const input: UpdatePostInput = {
+            title: title.trim(),
+            content: content.trim(),
+            tripId: tripId || undefined,
+            destination,
+            region,
+            imageUrls,
+            includeItinerary,
+            includeExpenses,
+            itinerarySnapshot,
+            expenseSnapshot,
+          };
+          await updatePost(editPost.id, input);
+          onSuccess(editPost.id, true);
+        } else {
+          const input: CreatePostInput = {
+            title: title.trim(),
+            content: content.trim(),
+            tripId: tripId || undefined,
+            destination,
+            region,
+            imageUrls,
+            includeItinerary,
+            includeExpenses,
+            itinerarySnapshot,
+            expenseSnapshot,
+          };
+          const postId = await createPost(
+            input,
+            user.uid,
+            user.displayName ?? "Ẩn danh",
+            user.photoURL ?? ""
+          );
+          onSuccess(postId, false);
+        }
+      }, LONG_TIMEOUT_MS);
       onClose();
     } catch (err) {
       setIsSubmitting(false);

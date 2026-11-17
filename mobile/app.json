@@ -8,7 +8,10 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tripkeo.app"
+      "bundleIdentifier": "com.tripkeo.app",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +39,20 @@
     "scheme": "tripkeo",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "9ebaa894-022b-4262-8df0-43a9a9ee0813"
+      }
+    },
+    "owner": "khoidinh",
+    "updates": {
+      "url": "https://u.expo.dev/9ebaa894-022b-4262-8df0-43a9a9ee0813"
     }
   }
 }

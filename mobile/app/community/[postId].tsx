@@ -28,6 +28,7 @@ import {
   EXPENSE_CATEGORY_CONFIG,
 } from "@/constants/trip";
 import { usePost } from "@/hooks/usePost";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
 import { uploadToCloudinary } from "@/services/cloudinaryService";
 import { cloneItineraryToTrip } from "@/services/cloneService";
 import { cn } from "@/lib/utils";
@@ -237,10 +238,12 @@ export default function PostDetailScreen() {
     if (!canSendComment) return;
     setSending(true);
     try {
-      const imageUrl = commentImage
-        ? await uploadToCloudinary(commentImage.uri, commentImage.mimeType)
-        : null;
-      await handleAddComment(text, imageUrl, commentGif);
+      await runBlocking(async () => {
+        const imageUrl = commentImage
+          ? await uploadToCloudinary(commentImage.uri, commentImage.mimeType)
+          : null;
+        await handleAddComment(text, imageUrl, commentGif);
+      }, LONG_TIMEOUT_MS);
       setCommentText("");
       setCommentImage(null);
       setCommentGif(null);
@@ -675,12 +678,9 @@ export default function PostDetailScreen() {
           defaultName={post.title}
           onClose={() => setCloneOpen(false)}
           onConfirm={async (name, startDate, cover) => {
-            const newTripId = await cloneItineraryToTrip(
-              post,
-              user,
-              name,
-              startDate,
-              cover
+            const newTripId = await runBlocking(
+              () => cloneItineraryToTrip(post, user, name, startDate, cover),
+              LONG_TIMEOUT_MS
             );
             router.replace({
               pathname: "/trips/[tripId]",

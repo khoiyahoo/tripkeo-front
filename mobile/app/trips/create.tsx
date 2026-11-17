@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DateField, Field, Input, SingleChips } from "@/components/form/fields";
 import { useTrips } from "@/hooks/useTrips";
+import { BlockingTimeoutError } from "@/lib/blocking";
 import { cn } from "@/lib/utils";
 import {
   addDays,
@@ -114,9 +115,14 @@ export default function CreateTripScreen() {
         invitedMembers: invited.length > 0 ? invited : undefined,
       });
       router.replace({ pathname: "/trips/[tripId]", params: { tripId } });
-    } catch {
+    } catch (err) {
       setIsSubmitting(false);
-      Alert.alert("Lỗi", "Không thể tạo chuyến đi. Vui lòng thử lại.");
+      Alert.alert(
+        "Lỗi",
+        err instanceof BlockingTimeoutError
+          ? err.message
+          : "Không thể tạo chuyến đi. Vui lòng thử lại."
+      );
     }
   };
 

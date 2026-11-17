@@ -7,6 +7,7 @@ import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { BlockingOverlay } from "@/components/BlockingOverlay";
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
 import { queryClient } from "@/lib/queryClient";
 import { useAuthStore } from "@/stores/authStore";
@@ -48,6 +49,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <StatusBar style="auto" />
           <RootNavigator />
+          <BlockingOverlay />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

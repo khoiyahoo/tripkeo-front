@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 
 import { ExpenseFormModal } from "@/components/trip/ExpenseFormModal";
+import { ExpensesPdfActions } from "@/components/trip/ExpensesPdfActions";
 
 import { Card, Empty, StatCard } from "@/components/trip/ui";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
@@ -10,7 +11,13 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 
 import type { ExpenseSummary } from "@/services/expenseService";
-import type { CreateExpenseInput, ExpenseWithId } from "@/types/firestore";
+import type {
+  CreateExpenseInput,
+  DebtSettlement,
+  ExpenseWithId,
+  MemberBalance,
+} from "@/types/firestore";
+import type { PdfTripMeta } from "@/utils/pdfExport";
 
 const SPLIT_METHOD_LABELS: Record<string, string> = {
   equal: "đều",
@@ -66,6 +73,10 @@ interface Props {
   summary: ExpenseSummary;
   costMembers: string[];
   isLoading: boolean;
+  tripId: string;
+  meta: PdfTripMeta;
+  balances: MemberBalance[];
+  debts: DebtSettlement[];
   canEdit: boolean;
   onAdd: (input: CreateExpenseInput) => Promise<unknown>;
   onUpdate: (id: string, input: Partial<CreateExpenseInput>) => Promise<void>;
@@ -77,6 +88,10 @@ export const ExpensesView = ({
   summary,
   costMembers,
   isLoading,
+  tripId,
+  meta,
+  balances,
+  debts,
   canEdit,
   onAdd,
   onUpdate,
@@ -142,6 +157,15 @@ export const ExpensesView = ({
           <CategorySummary expenses={expenses} />
         </Card>
       )}
+
+      <ExpensesPdfActions
+        balances={balances}
+        debts={debts}
+        expenses={expenses}
+        meta={meta}
+        summary={summary}
+        tripId={tripId}
+      />
 
       {canEdit && (
         <Pressable
