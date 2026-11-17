@@ -220,7 +220,7 @@ const TripDetailPage = () => {
                     </Avatar>
                   ))}
                   {memberEntries.length > 4 && (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-white/20 font-medium text-sm text-white backdrop-blur-sm">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-white/20 font-medium text-sm text-white sm:backdrop-blur-sm">
                       +{memberEntries.length - 4}
                     </div>
                   )}
@@ -231,7 +231,7 @@ const TripDetailPage = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-4 left-4 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
+            className="absolute top-4 left-4 h-11 w-11 bg-black/20 text-white hover:bg-black/40 sm:backdrop-blur-sm"
             onClick={() => window.history.back()}
             aria-label="Quay lại"
             title="Quay lại"
@@ -242,7 +242,7 @@ const TripDetailPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-16 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-black/40"
+              className="absolute top-4 right-16 h-11 w-11 bg-black/20 text-white hover:bg-black/40 sm:backdrop-blur-sm"
               onClick={() => setIsEditDialogOpen(true)}
               aria-label="Chỉnh sửa chuyến đi"
               title="Chỉnh sửa chuyến đi"
@@ -254,7 +254,7 @@ const TripDetailPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 h-11 w-11 bg-black/20 text-white backdrop-blur-sm hover:bg-error-500/80"
+              className="absolute top-4 right-4 h-11 w-11 bg-black/20 text-white hover:bg-error-500/80 sm:backdrop-blur-sm"
               onClick={async () => {
                 const count = await countPostsByTripId(tripId);
                 setLinkedPostCount(count);
@@ -339,7 +339,7 @@ const TripDetailPage = () => {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Sticky zone: tab bar + itinerary export button */}
-          <div className="sticky top-0 z-20 -mx-4 bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="sticky top-0 z-20 -mx-4 transform-gpu bg-surface px-4 pt-1 pb-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
               <TabsList className="flex h-auto flex-1 justify-start gap-1 overflow-x-auto bg-transparent p-0">
                 {TABS.map((tab) => (

@@ -1029,7 +1029,7 @@ export const ItineraryTab = ({
       onDragCancel={() => setDraggedActivity(null)}
     >
       <div className="space-y-4 pb-6">
-        <div className="sticky top-14 z-10 -mx-4 border-black/5 border-b bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="sticky top-14 z-10 -mx-4 transform-gpu border-black/5 border-b bg-surface px-4 py-3 sm:-mx-6 sm:bg-surface/95 sm:px-6 sm:backdrop-blur lg:-mx-8 lg:px-8">
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
             {days.map((day) => (
               <DayChip

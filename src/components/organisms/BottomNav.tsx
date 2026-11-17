@@ -18,7 +18,7 @@ const TABS = [
 export const BottomNav = ({ currentPath, onNavigate }: BottomNavProps) => (
   <nav
     aria-label="Điều hướng chính"
-    className="fixed inset-x-0 bottom-0 z-40 border-outline-variant border-t bg-surface-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+    className="fixed inset-x-0 bottom-0 z-40 transform-gpu border-outline-variant border-t bg-surface-card pb-[env(safe-area-inset-bottom)] lg:hidden"
   >
     <ul className="mx-auto flex max-w-xl">
       {TABS.map((tab) => {

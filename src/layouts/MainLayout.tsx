@@ -25,7 +25,7 @@ export const MainLayout = ({ children, currentPath }: MainLayoutProps) => {
 
   return (
     <div className="relative flex min-h-dvh bg-surface text-on-surface">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 hidden overflow-hidden lg:block">
         <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-primary-500/10 blur-3xl" />
         <div className="absolute -bottom-32 left-[20%] h-80 w-80 rounded-full bg-secondary-500/10 blur-3xl" />
       </div>
