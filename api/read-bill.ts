@@ -1,7 +1,7 @@
 import { createPartFromBase64, GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-import { isValidTripId, rateLimited, verifyTripRole } from "./_lib/auth";
+import { isValidTripId, rateLimited, verifyTripRole } from "./_lib/auth.js";
 import {
   ALLOWED_MIME,
   BILL_PROMPT,
@@ -10,7 +10,7 @@ import {
   isModelUnavailable,
   MAX_IMAGE_BASE64_LENGTH,
   modelChain,
-} from "./_lib/gemini";
+} from "./_lib/gemini.js";
 
 /**
  * Đọc ảnh bill bằng Gemini và trả về dữ liệu có cấu trúc.
@@ -78,6 +78,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ bill, model });
     } catch (err) {
       lastError = err;
+      // Chỉ ghi mô hình, mã lỗi và đầu thông báo lỗi (không ghi ảnh hay khóa)
+      const e = err as { status?: number; message?: string };
+      console.error(
+        "read-bill failed",
+        model,
+        e.status,
+        String(e.message ?? "").slice(0, 200)
+      );
       // Mô hình không dùng được (chưa có quyền / ngừng) thì thử mô hình dự phòng
       if (!isModelUnavailable(err)) break;
     }
