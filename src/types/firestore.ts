@@ -112,6 +112,8 @@ export interface ExpenseDoc {
    */
   splitDetails?: Record<string, number>;
   receiptUrl?: string;
+  /** Mã ảnh trên Cloudinary, dùng để xóa ảnh khi xóa/thay ảnh bill */
+  receiptPublicId?: string;
   note?: string;
   createdBy: string;
   createdAt: Timestamp;
@@ -204,6 +206,7 @@ export interface CreateExpenseInput {
   splitMethod: SplitMethod;
   splitDetails?: Record<string, number>;
   receiptUrl?: string;
+  receiptPublicId?: string;
   note?: string;
 }
 

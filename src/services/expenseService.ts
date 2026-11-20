@@ -105,6 +105,9 @@ export const createExpense = async (
     splitMethod: input.splitMethod,
     splitDetails: input.splitDetails ?? {},
     receiptUrl: input.receiptUrl ?? "",
+    ...(input.receiptPublicId
+      ? { receiptPublicId: input.receiptPublicId }
+      : {}),
     note: input.note ?? "",
     createdBy: userId,
     createdAt: serverTimestamp(),
@@ -138,6 +141,8 @@ export const updateExpense = async (
   if (data.splitDetails !== undefined)
     updateData.splitDetails = data.splitDetails;
   if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl;
+  if (data.receiptPublicId !== undefined)
+    updateData.receiptPublicId = data.receiptPublicId;
   if (data.note !== undefined) updateData.note = data.note;
 
   updateData.updatedAt = serverTimestamp();

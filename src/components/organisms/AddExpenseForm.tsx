@@ -1,5 +1,5 @@
-import { Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ImagePlus, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { DatePicker } from "@/components/molecules/DatePicker";
@@ -23,7 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { FUND_COPY } from "@/constants/fund";
+import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
+import { prepareBillImage } from "@/services/receiptImage";
+import {
+  receiptThumbUrl,
+  type UploadedReceipt,
+} from "@/services/receiptService";
 import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 import type { QrDraft } from "@/utils/qrPending";
 
@@ -61,6 +68,8 @@ const SPLIT_METHODS: { value: SplitMethod; label: string }[] = [
 
 /** Dữ liệu điền sẵn khi tạo khoản chi từ mã QR thanh toán */
 export interface ExpensePrefill extends QrDraft {
+  /** Ảnh bill đã nén (từ "Chụp bill"), sẽ được tải lên khi lưu */
+  receiptBlob?: Blob;
   /** Mở ngay hộp "Bạn đã chuyển khoản chưa?" (khi quay lại từ app ngân hàng) */
   askConfirm?: boolean;
 }
@@ -70,6 +79,11 @@ interface AddExpenseFormProps {
   costMembers: string[];
   initialData?: ExpenseWithId;
   prefill?: ExpensePrefill;
+  /** Lưu / xóa ảnh bill (Cloudinary); thiếu thì ẩn phần ảnh bill */
+  receipts?: {
+    upload: (image: Blob) => Promise<UploadedReceipt>;
+    remove: (publicId: string) => Promise<void>;
+  };
   /** Người trả gợi ý (thành viên trùng tên với người đang đăng nhập) */
   defaultPayer?: string;
   /** Chuyến đã bật quỹ và quỹ chưa đóng: cho chọn "Nguồn chi: Quỹ chung" */
@@ -84,6 +98,7 @@ export const AddExpenseForm = ({
   costMembers,
   initialData,
   prefill,
+  receipts,
   defaultPayer,
   fundAvailable = false,
   fundHasContributions = true,
@@ -108,7 +123,7 @@ export const AddExpenseForm = ({
   const [date, setDate] = useState(
     initialData
       ? toDateInputStr(initialData.date)
-      : new Date().toISOString().split("T")[0]
+      : (prefill?.date ?? new Date().toISOString().split("T")[0])
   );
   const [paidBy, setPaidBy] = useState(
     initialData?.paidBy ??
@@ -134,9 +149,35 @@ export const AddExpenseForm = ({
   );
   const [note, setNote] = useState(initialData?.note ?? prefill?.note ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Ảnh bill: ảnh mới chọn (chưa tải lên), ảnh đã lưu của khoản chi đang sửa, hoặc đã gỡ
+  const [receiptBlob, setReceiptBlob] = useState<Blob | null>(
+    prefill?.receiptBlob ?? null
+  );
+  const existingReceipt =
+    initialData?.receiptUrl && initialData.receiptPublicId
+      ? { url: initialData.receiptUrl, publicId: initialData.receiptPublicId }
+      : null;
+  const [receiptRemoved, setReceiptRemoved] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!receiptBlob) {
+      setReceiptPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(receiptBlob);
+    setReceiptPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [receiptBlob]);
+  const shownReceipt =
+    receiptPreview ??
+    (existingReceipt && !receiptRemoved
+      ? receiptThumbUrl(existingReceipt.url, 240)
+      : null);
   // Khoản quét từ QR chỉ lưu sau khi người dùng xác nhận đã chuyển khoản
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const needsPaymentConfirm = !!prefill && !isEditMode;
+  const needsPaymentConfirm = !!prefill?.payment && !isEditMode;
 
   const amount = Number(amountRaw) || 0;
 
@@ -191,9 +232,40 @@ export const AddExpenseForm = ({
   if (needsPaymentConfirm && !paymentConfirmed)
     missing.push("xác nhận đã chuyển khoản");
 
-  const handleSubmit = async () => {
+  const submitExpense = async (skipImage: boolean) => {
     if (!canSubmit) return;
     setIsSubmitting(true);
+    setUploadError(null);
+
+    // Tải ảnh bill lên trước; lỗi thì cho chọn thử lại / lưu không ảnh
+    let uploaded: UploadedReceipt | null = null;
+    if (receiptBlob && receipts && !skipImage) {
+      try {
+        uploaded = await runBlocking(
+          () => receipts.upload(receiptBlob),
+          LONG_TIMEOUT_MS
+        );
+      } catch (err) {
+        setIsSubmitting(false);
+        setUploadError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Không tải được ảnh bill. Vui lòng thử lại."
+        );
+        return;
+      }
+    }
+
+    let receiptFields: { receiptUrl?: string; receiptPublicId?: string } = {};
+    if (uploaded) {
+      receiptFields = {
+        receiptUrl: uploaded.url,
+        receiptPublicId: uploaded.publicId,
+      };
+    } else if (isEditMode && receiptRemoved && existingReceipt) {
+      receiptFields = { receiptUrl: "", receiptPublicId: "" };
+    }
+
     try {
       await onSubmit({
         description: description.trim(),
@@ -206,8 +278,11 @@ export const AddExpenseForm = ({
         splitMethod,
         splitDetails: splitMethod !== "equal" ? splitDetails : undefined,
         note: note.trim() || undefined,
+        ...receiptFields,
       });
     } catch (err) {
+      // Không lưu được khoản chi: dọn ảnh vừa tải lên, giữ nguyên form
+      if (uploaded && receipts) void receipts.remove(uploaded.publicId);
       // Người dùng không xác nhận hộp thoại ảnh hưởng quỹ: giữ nguyên form
       setIsSubmitting(false);
       if (!(err instanceof Error && err.message === "cancelled")) {
@@ -219,8 +294,25 @@ export const AddExpenseForm = ({
       }
       return;
     }
+    // Ảnh cũ đã được thay hoặc gỡ: xóa khỏi Cloudinary
+    if (existingReceipt && receipts && (uploaded || receiptRemoved)) {
+      void receipts.remove(existingReceipt.publicId);
+    }
     setIsSubmitting(false);
     onCancel();
+  };
+
+  const handleSubmit = () => submitExpense(false);
+
+  const pickReceipt = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const prepared = await prepareBillImage(file);
+      setReceiptBlob(prepared.upload);
+      setReceiptRemoved(false);
+    } catch {
+      toast.error("Không đọc được ảnh này.");
+    }
   };
 
   // Bấm "Đã chuyển" ở hộp xác nhận: đủ thông tin thì lưu luôn, thiếu thì giữ form để bổ sung
@@ -507,15 +599,73 @@ export const AddExpenseForm = ({
 
           <div>
             <Label>Ghi chú</Label>
-            <Input
-              placeholder="Tùy chọn"
-              value={note}
+            <Textarea
+              className="mt-1 min-h-20 resize-y"
               onChange={(e) => setNote(e.target.value)}
-              className="mt-1"
+              placeholder="Tùy chọn. Có thể ghi nhiều dòng."
+              rows={3}
+              value={note}
             />
           </div>
 
-          {prefill && !isEditMode && (
+          {receipts && (
+            <div>
+              <Label>Ảnh bill</Label>
+              <input
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  void pickReceipt(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+                ref={receiptInputRef}
+                type="file"
+              />
+              {shownReceipt ? (
+                <div className="mt-1 flex items-center gap-3">
+                  <img
+                    alt="Ảnh bill"
+                    className="h-20 w-20 rounded-lg object-cover"
+                    src={shownReceipt}
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <Button
+                      onClick={() => receiptInputRef.current?.click()}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Đổi ảnh
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setReceiptBlob(null);
+                        setReceiptRemoved(true);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Gỡ ảnh
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  className="mt-1 w-full"
+                  onClick={() => receiptInputRef.current?.click()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <ImagePlus className="mr-1 h-3.5 w-3.5" />
+                  Thêm ảnh bill
+                </Button>
+              )}
+            </div>
+          )}
+
+          {prefill?.payment && !isEditMode && (
             <QrPaymentSection
               amount={amount}
               askOnMount={!!prefill.askConfirm}
@@ -560,6 +710,27 @@ export const AddExpenseForm = ({
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        onOpenChange={(o) => !o && setUploadError(null)}
+        open={!!uploadError}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Không lưu được ảnh bill</DialogTitle>
+            <DialogDescription>{uploadError}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button onClick={() => setUploadError(null)} variant="outline">
+              Hủy
+            </Button>
+            <Button onClick={() => void submitExpense(true)} variant="outline">
+              Lưu không ảnh
+            </Button>
+            <Button onClick={() => void submitExpense(false)}>Thử lại</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showFundWarning} onOpenChange={setShowFundWarning}>
         <DialogContent className="max-w-sm">

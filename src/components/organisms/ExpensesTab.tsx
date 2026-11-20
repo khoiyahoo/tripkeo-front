@@ -1,5 +1,7 @@
 import {
+  ChevronDown,
   Eye,
+  Image as ImageIcon,
   Info,
   Loader2,
   Lock,
@@ -9,7 +11,7 @@ import {
   ScanLine,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -22,10 +24,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FUND_COPY } from "@/constants/fund";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
 import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
+import { deleteReceipt, uploadReceipt } from "@/services/receiptService";
 import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
@@ -33,6 +42,7 @@ import { clearPendingQr, loadPendingQr } from "@/utils/qrPending";
 import { guessCategory, type ParsedPaymentQr } from "@/utils/vietQr";
 
 import { AddExpenseForm, type ExpensePrefill } from "./AddExpenseForm";
+import { BillScanDialog, type BillScanOutput } from "./BillScanDialog";
 import { QrScannerDialog } from "./QrScannerDialog";
 import type {
   CreateExpenseInput,
@@ -52,6 +62,8 @@ const SPLIT_METHOD_LABELS: Record<string, string> = {
 
 // ─── Props ────────────────────────────────────────────────────
 interface ExpensesTabProps {
+  /** Mã chuyến đi (dùng khi lưu / xóa ảnh bill) */
+  tripId: string;
   expenses: ExpenseWithId[];
   summary: ExpenseSummary;
   /** System members map (for role checks) */
@@ -126,6 +138,7 @@ const CategorySummary = ({ expenses }: { expenses: ExpenseWithId[] }) => {
 // ─── Main Component ───────────────────────────────────────────
 
 export const ExpensesTab = ({
+  tripId,
   expenses,
   summary,
   members,
@@ -145,7 +158,20 @@ export const ExpensesTab = ({
   const [isAdding, setIsAdding] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   // QR vừa quét, đang chờ chọn nguồn chi (chuyến có quỹ)
-  const [pendingQr, setPendingQr] = useState<ParsedPaymentQr | null>(null);
+  const [pendingChoice, setPendingChoice] = useState<{
+    title: string;
+    amount?: number;
+    apply: (paidFrom: "fund" | "member") => void;
+  } | null>(null);
+  const [billOpen, setBillOpen] = useState(false);
+  const [viewReceipt, setViewReceipt] = useState<string | null>(null);
+  const receipts = useMemo(
+    () => ({
+      upload: (image: Blob) => uploadReceipt(tripId, image),
+      remove: (publicId: string) => deleteReceipt(tripId, publicId),
+    }),
+    [tripId]
+  );
   const [prefill, setPrefill] = useState<ExpensePrefill | undefined>();
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [impact, setImpact] = useState<{
@@ -250,10 +276,45 @@ export const ExpensesTab = ({
     setQrOpen(false);
     // Chuyến có quỹ (chưa đóng, đã có người đóng) thì hỏi nguồn chi; còn lại mặc định cá nhân ứng
     if (fundAvailable && fundHasContributions) {
-      setPendingQr(qr);
+      setPendingChoice({
+        title: qr.merchantName ?? "Thanh toán QR",
+        amount: qr.amount,
+        apply: (paidFrom) => startFromQr(qr, paidFrom),
+      });
       return;
     }
     startFromQr(qr, "member");
+  };
+
+  /** Dựng form chi tiêu từ kết quả đọc bill. */
+  const startFromBill = (
+    out: BillScanOutput,
+    paidFrom: "fund" | "member" | undefined
+  ) => {
+    setPrefill({
+      description: out.title,
+      amount: out.amount,
+      category: out.category,
+      date: out.date,
+      note: out.note,
+      paidFrom,
+      receiptBlob: out.image,
+    });
+    setEditingExpenseId(null);
+    setIsAdding(true);
+  };
+
+  const handleBillUse = (out: BillScanOutput) => {
+    setBillOpen(false);
+    if (fundAvailable && fundHasContributions) {
+      setPendingChoice({
+        title: out.title,
+        amount: out.amount,
+        apply: (paidFrom) => startFromBill(out, paidFrom),
+      });
+      return;
+    }
+    startFromBill(out, "member");
   };
 
   /** Hộp xác nhận "số dư quỹ trước → sau"; trả về false nếu người dùng không đồng ý. */
@@ -306,6 +367,9 @@ export const ExpensesTab = ({
     }
     try {
       await onDeleteExpense(expense.id);
+      if (expense.receiptPublicId) {
+        void deleteReceipt(tripId, expense.receiptPublicId);
+      }
     } catch (err) {
       toast.error(
         err instanceof Error && err.message
@@ -400,13 +464,22 @@ export const ExpensesTab = ({
         open={qrOpen}
       />
 
-      <Dialog onOpenChange={(o) => !o && setPendingQr(null)} open={!!pendingQr}>
+      <BillScanDialog
+        onOpenChange={setBillOpen}
+        onUse={handleBillUse}
+        open={billOpen}
+      />
+
+      <Dialog
+        onOpenChange={(o) => !o && setPendingChoice(null)}
+        open={!!pendingChoice}
+      >
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {pendingQr?.merchantName ?? "Thanh toán QR"}
-              {pendingQr?.amount
-                ? ` · ${formatCurrency(pendingQr.amount)}`
+              {pendingChoice?.title}
+              {pendingChoice?.amount
+                ? ` · ${formatCurrency(pendingChoice.amount)}`
                 : ""}
             </DialogTitle>
             <DialogDescription>Khoản này lấy tiền từ đâu?</DialogDescription>
@@ -414,22 +487,43 @@ export const ExpensesTab = ({
           <div className="flex flex-col gap-2">
             <Button
               onClick={() => {
-                if (pendingQr) startFromQr(pendingQr, "fund");
-                setPendingQr(null);
+                pendingChoice?.apply("fund");
+                setPendingChoice(null);
               }}
             >
               Chi từ quỹ chung
             </Button>
             <Button
               onClick={() => {
-                if (pendingQr) startFromQr(pendingQr, "member");
-                setPendingQr(null);
+                pendingChoice?.apply("member");
+                setPendingChoice(null);
               }}
               variant="outline"
             >
               Cá nhân ứng trước
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        onOpenChange={(o) => !o && setViewReceipt(null)}
+        open={!!viewReceipt}
+      >
+        <DialogContent className="max-h-[90svh] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ảnh bill</DialogTitle>
+            <DialogDescription className="sr-only">
+              Ảnh bill của khoản chi
+            </DialogDescription>
+          </DialogHeader>
+          {viewReceipt && (
+            <img
+              alt="Ảnh bill"
+              className="w-full rounded-lg object-contain"
+              src={viewReceipt}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -441,15 +535,27 @@ export const ExpensesTab = ({
           </CardTitle>
           {canEdit && !isAdding && !editingExpenseId && (
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center">
-              <Button
-                className="min-w-0 whitespace-nowrap"
-                onClick={() => setQrOpen(true)}
-                size="sm"
-                variant="outline"
-              >
-                <ScanLine className="mr-1 h-3.5 w-3.5" />
-                Quét QR
-              </Button>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="min-w-0 whitespace-nowrap"
+                    size="sm"
+                    variant="outline"
+                  >
+                    <ScanLine className="mr-1 h-3.5 w-3.5" />
+                    Quét
+                    <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setQrOpen(true)}>
+                    Quét QR thanh toán
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setBillOpen(true)}>
+                    Chụp bill
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 className="min-w-0 whitespace-nowrap"
                 onClick={() => {
@@ -482,11 +588,12 @@ export const ExpensesTab = ({
               <AddExpenseForm
                 key={
                   prefill
-                    ? `qr-${prefill.payment.accountNumber}-${prefill.amount ?? 0}`
+                    ? `scan-${prefill.description}-${prefill.amount ?? 0}`
                     : "new"
                 }
                 costMembers={costMembers}
                 prefill={prefill}
+                receipts={receipts}
                 defaultPayer={defaultPayer}
                 fundAvailable={fundAvailable}
                 fundHasContributions={fundHasContributions}
@@ -504,6 +611,7 @@ export const ExpensesTab = ({
                 fundAvailable={fundAvailable}
                 fundHasContributions={fundHasContributions}
                 initialData={editingExpense}
+                receipts={receipts}
                 onSubmit={handleEditSubmit}
                 onCancel={() => setEditingExpenseId(null)}
               />
@@ -555,6 +663,23 @@ export const ExpensesTab = ({
                           : `${expense.paidBy || "?"} trả`}{" "}
                         · chia {methodLabel} ({splitCount} người)
                       </p>
+                      {expense.receiptUrl && (
+                        <button
+                          className="mt-1 mr-3 inline-flex cursor-pointer items-center gap-1 text-primary-400 text-xs"
+                          onClick={() =>
+                            setViewReceipt(expense.receiptUrl ?? null)
+                          }
+                          type="button"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Xem ảnh bill
+                        </button>
+                      )}
+                      {expense.note && (
+                        <p className="mt-1 whitespace-pre-line break-words text-on-surface-variant text-xs">
+                          {expense.note}
+                        </p>
+                      )}
                     </div>
                     <span className="shrink-0 font-semibold text-on-surface text-sm">
                       {formatCurrency(expense.amount)}

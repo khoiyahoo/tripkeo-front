@@ -23,7 +23,7 @@ import { formatCurrency } from "@/utils/format";
 import { clearPendingQr, type QrDraft, savePendingQr } from "@/utils/qrPending";
 import { BANK_APPS, buildPayUrl } from "@/utils/vietQr";
 
-export type QrPaymentInfo = QrDraft["payment"];
+export type QrPaymentInfo = NonNullable<QrDraft["payment"]>;
 
 interface QrPaymentSectionProps {
   info: QrPaymentInfo;

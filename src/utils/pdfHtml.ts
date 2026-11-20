@@ -132,7 +132,7 @@ export const buildExpensesHtml = (
         <td class="hide-sm">${esc(cfg.label)}</td>
         <td class="r nw">${esc(formatCurrency(e.amount))}</td>
         <td>${esc(e.paidBy || "?")}</td>
-        <td class="hide-sm">${esc(e.note ?? "")}</td>
+        <td class="hide-sm" style="white-space:pre-line">${esc(e.note ?? "")}</td>
       </tr>`;
     })
     .join("");

@@ -8,13 +8,16 @@ export interface QrDraft {
   description: string;
   amount?: number;
   category: ExpenseCategory;
+  /** YYYY-MM-DD */
+  date?: string;
   note: string;
   paidFrom?: "fund" | "member";
   paidBy?: string;
   splitMethod?: SplitMethod;
   splitBetween?: string[];
   splitDetails?: Record<string, number>;
-  payment: {
+  /** Chỉ có với khoản quét từ QR thanh toán */
+  payment?: {
     merchantName?: string;
     bankBin?: string;
     bankName?: string;
