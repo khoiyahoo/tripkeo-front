@@ -408,7 +408,6 @@ const TripDetailPage = () => {
             </TabsContent>
             <TabsContent value="expenses">
               <ExpensesTab
-                tripId={tripId}
                 expenses={expenses}
                 summary={summary}
                 members={trip.members}
