@@ -204,9 +204,15 @@ export const ExpensesTab = ({
     qr: ParsedPaymentQr,
     paidFrom: "fund" | "member" | undefined
   ) => {
-    const title = qr.merchantName || qr.memo || "Thanh toán QR";
+    // Tiêu đề lấy từ nội dung chuyển khoản; không có thì dùng tên người nhận
+    const title = qr.memo || qr.merchantName || "Thanh toán QR";
     const bankLine = `Chuyển khoản QR${qr.bankName ? ` ${qr.bankName}` : ""}${qr.accountNumber ? ` · ${qr.accountNumber}` : ""}`;
-    const note = [qr.memo && qr.memo !== title ? qr.memo : "", bankLine]
+    const note = [
+      qr.merchantName && qr.merchantName !== title
+        ? `Người nhận: ${qr.merchantName}`
+        : "",
+      bankLine,
+    ]
       .filter(Boolean)
       .join("\n");
     const today = new Date().toDateString();
@@ -429,11 +435,14 @@ export const ExpensesTab = ({
 
       {/* Expense list */}
       <Card className="border-none shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="text-base">Danh sách chi tiêu</CardTitle>
+        <CardHeader className="flex flex-col items-stretch gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="min-w-0 text-base">
+            Danh sách chi tiêu
+          </CardTitle>
           {canEdit && !isAdding && !editingExpenseId && (
-            <div className="flex items-center gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center">
               <Button
+                className="min-w-0 whitespace-nowrap"
                 onClick={() => setQrOpen(true)}
                 size="sm"
                 variant="outline"
@@ -442,6 +451,7 @@ export const ExpensesTab = ({
                 Quét QR
               </Button>
               <Button
+                className="min-w-0 whitespace-nowrap"
                 onClick={() => {
                   setPrefill(undefined);
                   setIsAdding(true);
