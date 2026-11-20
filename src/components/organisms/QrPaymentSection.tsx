@@ -140,7 +140,7 @@ export const QrPaymentSection = ({
               <SelectTrigger className="mt-1">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[min(18rem,var(--radix-select-content-available-height))]">
                 {BANK_APPS.map((a) => (
                   <SelectItem key={a.appId} value={a.appId}>
                     {a.name}
