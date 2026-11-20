@@ -35,6 +35,8 @@ interface QrPaymentSectionProps {
   /** Hỏi xác nhận ngay khi mở (khôi phục sau khi quay về từ app ngân hàng) */
   askOnMount?: boolean;
   onConfirmedChange: (v: boolean) => void;
+  /** Người dùng bấm "Đã chuyển" ở hộp xác nhận */
+  onPaid?: () => void;
 }
 
 const APP_KEY = "tripkeo_bank_app";
@@ -59,6 +61,7 @@ export const QrPaymentSection = ({
   getDraft,
   askOnMount = false,
   onConfirmedChange,
+  onPaid,
 }: QrPaymentSectionProps) => {
   const [appId, setAppId] = useState(readSavedApp);
   const [askConfirm, setAskConfirm] = useState(askOnMount);
@@ -200,6 +203,7 @@ export const QrPaymentSection = ({
               onClick={() => {
                 onConfirmedChange(true);
                 setAskConfirm(false);
+                onPaid?.();
               }}
             >
               <Check className="mr-1 h-4 w-4" />

@@ -1,5 +1,5 @@
 import { Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { DatePicker } from "@/components/molecules/DatePicker";
@@ -222,6 +222,15 @@ export const AddExpenseForm = ({
     setIsSubmitting(false);
     onCancel();
   };
+
+  // Bấm "Đã chuyển" ở hộp xác nhận: đủ thông tin thì lưu luôn, thiếu thì giữ form để bổ sung
+  const [autoSubmit, setAutoSubmit] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chỉ chạy khi cờ autoSubmit hoặc canSubmit đổi
+  useEffect(() => {
+    if (!autoSubmit) return;
+    setAutoSubmit(false);
+    if (canSubmit) void handleSubmit();
+  }, [autoSubmit, canSubmit]);
 
   // Split detail helper text
   const splitSummary = (() => {
@@ -526,6 +535,10 @@ export const AddExpenseForm = ({
               })}
               info={prefill.payment}
               onConfirmedChange={setPaymentConfirmed}
+              onPaid={() => {
+                setPaymentConfirmed(true);
+                setAutoSubmit(true);
+              }}
             />
           )}
 
