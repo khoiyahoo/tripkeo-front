@@ -70,6 +70,8 @@ interface AddExpenseFormProps {
   costMembers: string[];
   initialData?: ExpenseWithId;
   prefill?: ExpensePrefill;
+  /** Người trả gợi ý (thành viên trùng tên với người đang đăng nhập) */
+  defaultPayer?: string;
   /** Chuyến đã bật quỹ và quỹ chưa đóng: cho chọn "Nguồn chi: Quỹ chung" */
   fundAvailable?: boolean;
   /** Quỹ đã có ít nhất một khoản đóng đang hiệu lực; chưa có thì không cho chọn "Quỹ chung" */
@@ -82,6 +84,7 @@ export const AddExpenseForm = ({
   costMembers,
   initialData,
   prefill,
+  defaultPayer,
   fundAvailable = false,
   fundHasContributions = true,
   onSubmit,
@@ -108,7 +111,9 @@ export const AddExpenseForm = ({
       : new Date().toISOString().split("T")[0]
   );
   const [paidBy, setPaidBy] = useState(
-    initialData?.paidBy ?? prefill?.paidBy ?? ""
+    initialData?.paidBy ??
+      prefill?.paidBy ??
+      (prefill && defaultPayer ? defaultPayer : "")
   );
   // Mặc định chi từ quỹ khi chuyến có quỹ; khoản cũ giữ nguồn chi của nó
   const [paidFrom, setPaidFrom] = useState<"fund" | "member">(
@@ -176,6 +181,15 @@ export const AddExpenseForm = ({
     splitValid &&
     (!needsPaymentConfirm || paymentConfirmed) &&
     !isSubmitting;
+
+  // Lý do nút lưu đang tắt, để người dùng biết cần làm gì
+  const missing: string[] = [];
+  if (!description.trim()) missing.push("tiêu đề");
+  if (!(amount > 0)) missing.push("số tiền");
+  if (paidFrom !== "fund" && !paidBy) missing.push("người trả");
+  if (!splitValid) missing.push("cách chia hợp lệ");
+  if (needsPaymentConfirm && !paymentConfirmed)
+    missing.push("xác nhận đã chuyển khoản");
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -526,6 +540,11 @@ export const AddExpenseForm = ({
             )}
             {isEditMode ? "Lưu thay đổi" : "Thêm chi tiêu"}
           </Button>
+          {!canSubmit && !isSubmitting && missing.length > 0 && (
+            <p className="text-center text-on-surface-variant text-xs">
+              Còn thiếu: {missing.join(", ")}
+            </p>
+          )}
         </CardContent>
       </Card>
 

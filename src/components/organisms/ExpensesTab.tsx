@@ -26,6 +26,7 @@ import { FUND_COPY } from "@/constants/fund";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
 import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
+import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
 import { clearPendingQr, loadPendingQr } from "@/utils/qrPending";
@@ -140,6 +141,7 @@ export const ExpensesTab = ({
   openAddFund = false,
   onOpenAddFundHandled,
 }: ExpensesTabProps) => {
+  const user = useAuthStore((s) => s.user);
   const [isAdding, setIsAdding] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   // QR vừa quét, đang chờ chọn nguồn chi (chuyến có quỹ)
@@ -151,6 +153,13 @@ export const ExpensesTab = ({
     after: number;
     resolve: (ok: boolean) => void;
   } | null>(null);
+
+  // Gợi ý người trả: thành viên có tên trùng người đang đăng nhập
+  const defaultPayer = costMembers.find(
+    (n) =>
+      !!user?.displayName &&
+      n.trim().toLowerCase() === user.displayName.trim().toLowerCase()
+  );
 
   const fundOn = !!fund?.enabled;
   const fundAvailable = fundOn && !fundClosed;
@@ -468,6 +477,7 @@ export const ExpensesTab = ({
                 }
                 costMembers={costMembers}
                 prefill={prefill}
+                defaultPayer={defaultPayer}
                 fundAvailable={fundAvailable}
                 fundHasContributions={fundHasContributions}
                 onSubmit={onAddExpense}
