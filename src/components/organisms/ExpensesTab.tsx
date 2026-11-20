@@ -33,8 +33,8 @@ import {
 import { FUND_COPY } from "@/constants/fund";
 import { EXPENSE_CATEGORY_CONFIG } from "@/constants/trip";
 import { cn } from "@/lib/utils";
+import { uploadToCloudinary } from "@/services/cloudinaryService";
 import type { ExpenseSummary } from "@/services/expenseService";
-import { deleteReceipt, uploadReceipt } from "@/services/receiptService";
 import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
@@ -62,7 +62,7 @@ const SPLIT_METHOD_LABELS: Record<string, string> = {
 
 // ─── Props ────────────────────────────────────────────────────
 interface ExpensesTabProps {
-  /** Mã chuyến đi (dùng khi lưu / xóa ảnh bill) */
+  /** Mã chuyến đi (dùng khi đọc bill bằng AI) */
   tripId: string;
   expenses: ExpenseWithId[];
   summary: ExpenseSummary;
@@ -157,21 +157,28 @@ export const ExpensesTab = ({
   const user = useAuthStore((s) => s.user);
   const [isAdding, setIsAdding] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [billOpen, setBillOpen] = useState(false);
+  const [viewReceipt, setViewReceipt] = useState<string | null>(null);
+  // Ảnh bill lưu cùng Cloudinary với ảnh Cộng đồng (preset không ký), thư mục riêng
+  const receipts = useMemo(
+    () => ({
+      upload: (image: Blob) =>
+        uploadToCloudinary(
+          new File([image], "bill.jpg", { type: "image/jpeg" }),
+          {
+            folder: "tripkeo/receipts",
+            maxWidth: 1600,
+          }
+        ),
+    }),
+    []
+  );
   // QR vừa quét, đang chờ chọn nguồn chi (chuyến có quỹ)
   const [pendingChoice, setPendingChoice] = useState<{
     title: string;
     amount?: number;
     apply: (paidFrom: "fund" | "member") => void;
   } | null>(null);
-  const [billOpen, setBillOpen] = useState(false);
-  const [viewReceipt, setViewReceipt] = useState<string | null>(null);
-  const receipts = useMemo(
-    () => ({
-      upload: (image: Blob) => uploadReceipt(tripId, image),
-      remove: (publicId: string) => deleteReceipt(tripId, publicId),
-    }),
-    [tripId]
-  );
   const [prefill, setPrefill] = useState<ExpensePrefill | undefined>();
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [impact, setImpact] = useState<{
@@ -367,9 +374,6 @@ export const ExpensesTab = ({
     }
     try {
       await onDeleteExpense(expense.id);
-      if (expense.receiptPublicId) {
-        void deleteReceipt(tripId, expense.receiptPublicId);
-      }
     } catch (err) {
       toast.error(
         err instanceof Error && err.message
@@ -468,6 +472,7 @@ export const ExpensesTab = ({
         onOpenChange={setBillOpen}
         onUse={handleBillUse}
         open={billOpen}
+        tripId={tripId}
       />
 
       <Dialog

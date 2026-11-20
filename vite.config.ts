@@ -40,21 +40,6 @@ export default defineConfig({
         // Không cache font TTF/WOFF lớn (chỉ dùng cho xuất PDF trên web)
         globPatterns: ["**/*.{js,css,html,svg,png,webp,ico}"],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        // Bộ đọc chữ trên bill (nặng) chỉ tải khi dùng, không tải trước lúc cài PWA
-        globIgnores: ["**/tesseract-core-*", "**/worker.min-*"],
-        runtimeCaching: [
-          {
-            // Lưu lại sau lần dùng đầu để đọc bill được cả khi mất mạng
-            urlPattern: ({ url }) =>
-              /\/assets\/(tesseract-core-|worker\.min-)/.test(url.pathname) ||
-              url.pathname.startsWith("/ocr/"),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "ocr-assets",
-              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 90 },
-            },
-          },
-        ],
         // Các route API (Vercel functions) phải đi thẳng ra mạng, không trả về index.html
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],

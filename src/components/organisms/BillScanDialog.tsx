@@ -12,8 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { releaseBillOcr, scanBill } from "@/services/billOcr";
-import { billItemsToNote } from "@/utils/billParse";
+import { readBillWithAi } from "@/services/billAi";
+import { billItemsToNote, sumItems } from "@/utils/billResult";
 import {
   formatCurrency,
   formatCurrencyInput,
@@ -37,6 +37,7 @@ export interface BillScanOutput {
 interface BillScanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  tripId: string;
   onUse: (result: BillScanOutput) => void;
 }
 
@@ -47,18 +48,17 @@ const today = () => new Date().toISOString().split("T")[0];
 export const BillScanDialog = ({
   open,
   onOpenChange,
+  tripId,
   onUse,
 }: BillScanDialogProps) => {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("pick");
-  const [progress, setProgress] = useState({ label: "", ratio: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const [image, setImage] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<ExpenseCategory>("food");
-  const [candidates, setCandidates] = useState<number[]>([]);
   const [amountRaw, setAmountRaw] = useState("");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(today());
@@ -66,20 +66,17 @@ export const BillScanDialog = ({
   const [foundTotal, setFoundTotal] = useState(true);
   const [itemsSum, setItemsSum] = useState(0);
 
-  // Mở lại là bắt đầu mới; đóng thì giải phóng bộ nhớ
+  // Mở lại là bắt đầu mới
   useEffect(() => {
-    if (open) {
-      setPhase("pick");
-      setError(null);
-      setImage(null);
-      setAmountRaw("");
-      setTitle("");
-      setNote("");
-      setDate(today());
-      setCandidates([]);
-      return;
-    }
-    void releaseBillOcr();
+    if (!open) return;
+    setPhase("pick");
+    setError(null);
+    setImage(null);
+    setAmountRaw("");
+    setTitle("");
+    setNote("");
+    setDate(today());
+    setItemsSum(0);
   }, [open]);
 
   useEffect(() => {
@@ -96,24 +93,22 @@ export const BillScanDialog = ({
     if (!file) return;
     setError(null);
     setPhase("reading");
-    setProgress({ label: "Đang xử lý ảnh", ratio: 0 });
     try {
-      const r = await scanBill(file, (label, ratio) =>
-        setProgress({ label, ratio })
-      );
+      const r = await readBillWithAi(tripId, file);
       setImage(r.image);
       setCategory(r.bill.category);
-      setCandidates(r.bill.totalCandidates);
       setFoundTotal(r.bill.total !== undefined);
-      setItemsSum(r.bill.items.reduce((sum, i) => sum + i.amount, 0));
       setAmountRaw(r.bill.total ? String(r.bill.total) : "");
       setTitle(r.bill.merchant ?? "");
       setDate(r.bill.date ?? today());
       setNote(billItemsToNote(r.bill.items));
+      setItemsSum(sumItems(r.bill.items));
       setPhase("review");
-    } catch {
+    } catch (err) {
       setError(
-        "Không đọc được bill. Hãy thử chụp rõ hơn, đủ sáng, hoặc thêm chi tiêu thủ công."
+        err instanceof Error && err.message
+          ? err.message
+          : "Không đọc được bill. Hãy thử lại hoặc thêm chi tiêu thủ công."
       );
       setPhase("pick");
     }
@@ -128,7 +123,7 @@ export const BillScanDialog = ({
         <DialogHeader>
           <DialogTitle>Chụp bill</DialogTitle>
           <DialogDescription>
-            Ảnh được đọc ngay trên máy của bạn. Hãy kiểm tra lại kết quả trước
+            AI đọc bill và điền sẵn khoản chi. Hãy kiểm tra lại kết quả trước
             khi dùng.
           </DialogDescription>
         </DialogHeader>
@@ -175,19 +170,18 @@ export const BillScanDialog = ({
               <ImageUp className="mr-2 h-4 w-4" />
               Chọn ảnh từ thư viện
             </Button>
+            <p className="text-on-surface-variant text-xs">
+              Ảnh bill được gửi tới Google Gemini (gói miễn phí) để đọc chữ. Ở
+              gói miễn phí, Google có thể dùng nội dung để cải thiện sản phẩm,
+              nên đừng chụp bill có thông tin nhạy cảm.
+            </p>
           </div>
         )}
 
         {phase === "reading" && (
-          <div className="space-y-3 py-6 text-center">
+          <div className="space-y-3 py-8 text-center">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary-400" />
-            <p className="text-on-surface text-sm">{progress.label}</p>
-            <div className="mx-auto h-1.5 w-48 overflow-hidden rounded-full bg-surface-dim">
-              <div
-                className="h-full rounded-full bg-primary-500 transition-all"
-                style={{ width: `${Math.round(progress.ratio * 100)}%` }}
-              />
-            </div>
+            <p className="text-on-surface text-sm">AI đang đọc bill...</p>
           </div>
         )}
 
@@ -205,7 +199,6 @@ export const BillScanDialog = ({
                 Không tìm thấy tổng tiền trên bill, hãy nhập tay.
               </p>
             )}
-
             {foundTotal && itemsSum > 0 && itemsSum !== amount && (
               <p className="rounded-lg bg-warning-500/10 px-3 py-2 text-warning-400 text-xs">
                 Tổng các món đọc được là {formatCurrency(itemsSum)}, khác tổng
@@ -224,24 +217,6 @@ export const BillScanDialog = ({
                 placeholder="0"
                 value={formatCurrencyInput(amountRaw)}
               />
-              {candidates.length > 1 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {candidates.map((c) => (
-                    <button
-                      className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs ${
-                        c === amount
-                          ? "border-primary-400 bg-primary-500/15 text-primary-300"
-                          : "border-outline-variant text-on-surface-variant"
-                      }`}
-                      key={c}
-                      onClick={() => setAmountRaw(String(c))}
-                      type="button"
-                    >
-                      {formatCurrency(c)}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div>

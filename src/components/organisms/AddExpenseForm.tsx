@@ -26,11 +26,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { FUND_COPY } from "@/constants/fund";
 import { LONG_TIMEOUT_MS, runBlocking } from "@/lib/blocking";
-import { prepareBillImage } from "@/services/receiptImage";
-import {
-  receiptThumbUrl,
-  type UploadedReceipt,
-} from "@/services/receiptService";
+import { prepareBillImage } from "@/services/billAi";
+import { cloudinaryThumb } from "@/services/cloudinaryService";
 import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 import type { QrDraft } from "@/utils/qrPending";
 
@@ -79,11 +76,8 @@ interface AddExpenseFormProps {
   costMembers: string[];
   initialData?: ExpenseWithId;
   prefill?: ExpensePrefill;
-  /** Lưu / xóa ảnh bill (Cloudinary); thiếu thì ẩn phần ảnh bill */
-  receipts?: {
-    upload: (image: Blob) => Promise<UploadedReceipt>;
-    remove: (publicId: string) => Promise<void>;
-  };
+  /** Lưu ảnh bill (trả về địa chỉ ảnh); thiếu thì ẩn phần ảnh bill */
+  receipts?: { upload: (image: Blob) => Promise<string> };
   /** Người trả gợi ý (thành viên trùng tên với người đang đăng nhập) */
   defaultPayer?: string;
   /** Chuyến đã bật quỹ và quỹ chưa đóng: cho chọn "Nguồn chi: Quỹ chung" */
@@ -153,10 +147,7 @@ export const AddExpenseForm = ({
   const [receiptBlob, setReceiptBlob] = useState<Blob | null>(
     prefill?.receiptBlob ?? null
   );
-  const existingReceipt =
-    initialData?.receiptUrl && initialData.receiptPublicId
-      ? { url: initialData.receiptUrl, publicId: initialData.receiptPublicId }
-      : null;
+  const existingReceiptUrl = initialData?.receiptUrl || null;
   const [receiptRemoved, setReceiptRemoved] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -172,8 +163,8 @@ export const AddExpenseForm = ({
   }, [receiptBlob]);
   const shownReceipt =
     receiptPreview ??
-    (existingReceipt && !receiptRemoved
-      ? receiptThumbUrl(existingReceipt.url, 240)
+    (existingReceiptUrl && !receiptRemoved
+      ? cloudinaryThumb(existingReceiptUrl)
       : null);
   // Khoản quét từ QR chỉ lưu sau khi người dùng xác nhận đã chuyển khoản
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -238,10 +229,10 @@ export const AddExpenseForm = ({
     setUploadError(null);
 
     // Tải ảnh bill lên trước; lỗi thì cho chọn thử lại / lưu không ảnh
-    let uploaded: UploadedReceipt | null = null;
+    let uploadedUrl: string | null = null;
     if (receiptBlob && receipts && !skipImage) {
       try {
-        uploaded = await runBlocking(
+        uploadedUrl = await runBlocking(
           () => receipts.upload(receiptBlob),
           LONG_TIMEOUT_MS
         );
@@ -256,14 +247,10 @@ export const AddExpenseForm = ({
       }
     }
 
-    let receiptFields: { receiptUrl?: string; receiptPublicId?: string } = {};
-    if (uploaded) {
-      receiptFields = {
-        receiptUrl: uploaded.url,
-        receiptPublicId: uploaded.publicId,
-      };
-    } else if (isEditMode && receiptRemoved && existingReceipt) {
-      receiptFields = { receiptUrl: "", receiptPublicId: "" };
+    let receiptFields: { receiptUrl?: string } = {};
+    if (uploadedUrl) receiptFields = { receiptUrl: uploadedUrl };
+    else if (isEditMode && receiptRemoved && existingReceiptUrl) {
+      receiptFields = { receiptUrl: "" };
     }
 
     try {
@@ -281,8 +268,6 @@ export const AddExpenseForm = ({
         ...receiptFields,
       });
     } catch (err) {
-      // Không lưu được khoản chi: dọn ảnh vừa tải lên, giữ nguyên form
-      if (uploaded && receipts) void receipts.remove(uploaded.publicId);
       // Người dùng không xác nhận hộp thoại ảnh hưởng quỹ: giữ nguyên form
       setIsSubmitting(false);
       if (!(err instanceof Error && err.message === "cancelled")) {
@@ -294,10 +279,6 @@ export const AddExpenseForm = ({
       }
       return;
     }
-    // Ảnh cũ đã được thay hoặc gỡ: xóa khỏi Cloudinary
-    if (existingReceipt && receipts && (uploaded || receiptRemoved)) {
-      void receipts.remove(existingReceipt.publicId);
-    }
     setIsSubmitting(false);
     onCancel();
   };
@@ -308,7 +289,7 @@ export const AddExpenseForm = ({
     if (!file) return;
     try {
       const prepared = await prepareBillImage(file);
-      setReceiptBlob(prepared.upload);
+      setReceiptBlob(prepared.blob);
       setReceiptRemoved(false);
     } catch {
       toast.error("Không đọc được ảnh này.");

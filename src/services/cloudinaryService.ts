@@ -51,18 +51,28 @@ interface CloudinaryResponse {
   public_id: string;
 }
 
-export async function uploadToCloudinary(file: File): Promise<string> {
+export interface UploadOptions {
+  /** Thư mục trên Cloudinary; mặc định ảnh Cộng đồng */
+  folder?: string;
+  /** Chiều rộng tối đa sau khi thu nhỏ; mặc định 1200 */
+  maxWidth?: number;
+}
+
+export async function uploadToCloudinary(
+  file: File,
+  options: UploadOptions = {}
+): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error(
       "Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET."
     );
   }
 
-  const resized = await resizeImage(file);
+  const resized = await resizeImage(file, options.maxWidth);
   const formData = new FormData();
   formData.append("file", resized, file.name);
   formData.append("upload_preset", UPLOAD_PRESET);
-  formData.append("folder", "tripkeo/community");
+  formData.append("folder", options.folder ?? "tripkeo/community");
 
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
@@ -86,3 +96,7 @@ export async function uploadImages(files: File[]): Promise<string[]> {
   }
   return urls;
 }
+
+/** Ảnh thu nhỏ cho danh sách (Cloudinary tự resize khi phân phối). */
+export const cloudinaryThumb = (url: string, size = 240): string =>
+  url.replace("/upload/", `/upload/c_fill,w_${size},h_${size},q_auto,f_auto/`);

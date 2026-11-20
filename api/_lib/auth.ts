@@ -11,6 +11,9 @@ interface FirestoreValue {
   mapValue?: { fields?: Record<string, FirestoreValue> };
 }
 
+export const isValidTripId = (id: unknown): id is string =>
+  typeof id === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(id);
+
 export const verifyTripRole = async (
   authorization: string | undefined,
   tripId: string,
@@ -71,7 +74,7 @@ export const verifyTripRole = async (
 
 /** Giới hạn tạm theo từng instance (tối đa `limit` lần mỗi giờ cho mỗi người). */
 const hits = new Map<string, number[]>();
-export const rateLimited = (key: string, limit = 40): boolean => {
+export const rateLimited = (key: string, limit = 30): boolean => {
   const now = Date.now();
   const recent = (hits.get(key) ?? []).filter((t) => now - t < 3_600_000);
   if (recent.length >= limit) {
