@@ -26,6 +26,7 @@ import {
 import { FUND_COPY } from "@/constants/fund";
 import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
 
+import { type QrPaymentInfo, QrPaymentSection } from "./QrPaymentSection";
 import type {
   CreateExpenseInput,
   ExpenseWithId,
@@ -57,10 +58,24 @@ const SPLIT_METHODS: { value: SplitMethod; label: string }[] = [
   { value: "shares", label: "Phần" },
 ];
 
+/** Dữ liệu điền sẵn khi tạo khoản chi từ mã QR thanh toán */
+export interface ExpensePrefill {
+  description: string;
+  amount?: number;
+  category: ExpenseCategory;
+  note: string;
+  /** Nguồn chi đã chọn ở bước quét; bỏ trống = theo mặc định của form */
+  paidFrom?: "fund" | "member";
+  payment: QrPaymentInfo;
+  /** Cảnh báo có thể trùng khoản đã ghi */
+  duplicateWarning?: string;
+}
+
 interface AddExpenseFormProps {
   /** Names from the trip's costMembers list */
   costMembers: string[];
   initialData?: ExpenseWithId;
+  prefill?: ExpensePrefill;
   /** Chuyến đã bật quỹ và quỹ chưa đóng: cho chọn "Nguồn chi: Quỹ chung" */
   fundAvailable?: boolean;
   /** Quỹ đã có ít nhất một khoản đóng đang hiệu lực; chưa có thì không cho chọn "Quỹ chung" */
@@ -72,6 +87,7 @@ interface AddExpenseFormProps {
 export const AddExpenseForm = ({
   costMembers,
   initialData,
+  prefill,
   fundAvailable = false,
   fundHasContributions = true,
   onSubmit,
@@ -80,13 +96,17 @@ export const AddExpenseForm = ({
   const isEditMode = !!initialData;
 
   const [description, setDescription] = useState(
-    initialData?.description ?? ""
+    initialData?.description ?? prefill?.description ?? ""
   );
   const [amountRaw, setAmountRaw] = useState(
-    initialData ? String(initialData.amount) : ""
+    initialData
+      ? String(initialData.amount)
+      : prefill?.amount
+        ? String(prefill.amount)
+        : ""
   );
   const [category, setCategory] = useState<ExpenseCategory>(
-    initialData?.category ?? "food"
+    initialData?.category ?? prefill?.category ?? "food"
   );
   const [date, setDate] = useState(
     initialData
@@ -97,6 +117,7 @@ export const AddExpenseForm = ({
   // Mặc định chi từ quỹ khi chuyến có quỹ; khoản cũ giữ nguồn chi của nó
   const [paidFrom, setPaidFrom] = useState<"fund" | "member">(
     initialData?.paidFrom ??
+      prefill?.paidFrom ??
       (fundAvailable && fundHasContributions ? "fund" : "member")
   );
   const [showFundWarning, setShowFundWarning] = useState(false);
@@ -110,8 +131,11 @@ export const AddExpenseForm = ({
   const [splitDetails, setSplitDetails] = useState<Record<string, number>>(
     initialData?.splitDetails ?? {}
   );
-  const [note, setNote] = useState(initialData?.note ?? "");
+  const [note, setNote] = useState(initialData?.note ?? prefill?.note ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Khoản quét từ QR chỉ lưu sau khi người dùng xác nhận đã chuyển khoản
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const needsPaymentConfirm = !!prefill && !isEditMode;
 
   const amount = Number(amountRaw) || 0;
 
@@ -154,6 +178,7 @@ export const AddExpenseForm = ({
     amount > 0 &&
     (paidFrom === "fund" || paidBy) &&
     splitValid &&
+    (!needsPaymentConfirm || paymentConfirmed) &&
     !isSubmitting;
 
   const handleSubmit = async () => {
@@ -224,6 +249,12 @@ export const AddExpenseForm = ({
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {prefill?.duplicateWarning && !isEditMode && (
+            <div className="rounded-xl bg-warning-500/10 px-3 py-2 text-warning-400 text-xs">
+              {prefill.duplicateWarning}
+            </div>
+          )}
 
           <div>
             <Label>Tiêu đề *</Label>
@@ -464,6 +495,15 @@ export const AddExpenseForm = ({
               className="mt-1"
             />
           </div>
+
+          {prefill && !isEditMode && (
+            <QrPaymentSection
+              amount={amount}
+              confirmed={paymentConfirmed}
+              info={prefill.payment}
+              onConfirmedChange={setPaymentConfirmed}
+            />
+          )}
 
           <Button
             onClick={handleSubmit}
