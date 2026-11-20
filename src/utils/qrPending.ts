@@ -8,8 +8,6 @@ export interface QrDraft {
   description: string;
   amount?: number;
   category: ExpenseCategory;
-  /** YYYY-MM-DD */
-  date?: string;
   note: string;
   paidFrom?: "fund" | "member";
   paidBy?: string;
