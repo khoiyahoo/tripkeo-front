@@ -6,6 +6,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  ScanLine,
   Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -27,8 +28,10 @@ import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
+import { guessCategory, type ParsedPaymentQr } from "@/utils/vietQr";
 
-import { AddExpenseForm } from "./AddExpenseForm";
+import { AddExpenseForm, type ExpensePrefill } from "./AddExpenseForm";
+import { QrScannerDialog } from "./QrScannerDialog";
 import type {
   CreateExpenseInput,
   ExpenseWithId,
@@ -137,6 +140,10 @@ export const ExpensesTab = ({
   onOpenAddFundHandled,
 }: ExpensesTabProps) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  // QR vừa quét, đang chờ chọn nguồn chi (chuyến có quỹ)
+  const [pendingQr, setPendingQr] = useState<ParsedPaymentQr | null>(null);
+  const [prefill, setPrefill] = useState<ExpensePrefill | undefined>();
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [impact, setImpact] = useState<{
     before: number;
@@ -170,6 +177,57 @@ export const ExpensesTab = ({
     }
     onOpenAddFundHandled?.();
   }, [openAddFund, canEdit, onOpenAddFundHandled]);
+
+  /** Dựng form chi tiêu từ QR đã quét; `paidFrom` là nguồn chi đã chọn. */
+  const startFromQr = (
+    qr: ParsedPaymentQr,
+    paidFrom: "fund" | "member" | undefined
+  ) => {
+    const title = qr.merchantName || qr.memo || "Thanh toán QR";
+    const bankLine = `Chuyển khoản QR${qr.bankName ? ` ${qr.bankName}` : ""}${qr.accountNumber ? ` · ${qr.accountNumber}` : ""}`;
+    const note = [qr.memo && qr.memo !== title ? qr.memo : "", bankLine]
+      .filter(Boolean)
+      .join("\n");
+    const today = new Date().toDateString();
+    const dup =
+      !!qr.amount &&
+      !!qr.accountNumber &&
+      expenses.some(
+        (e) =>
+          e.amount === qr.amount &&
+          !!e.note?.includes(qr.accountNumber ?? "") &&
+          e.date.toDate().toDateString() === today
+      );
+    setPrefill({
+      description: title,
+      amount: qr.amount,
+      category: guessCategory(`${title} ${qr.memo ?? ""}`),
+      note,
+      paidFrom,
+      payment: {
+        merchantName: qr.merchantName,
+        bankBin: qr.bankBin,
+        bankName: qr.bankName,
+        accountNumber: qr.accountNumber,
+        memo: qr.memo,
+      },
+      duplicateWarning: dup
+        ? "Hôm nay đã có khoản cùng số tiền tới tài khoản này. Kiểm tra để tránh ghi trùng."
+        : undefined,
+    });
+    setEditingExpenseId(null);
+    setIsAdding(true);
+  };
+
+  const handleScanned = (qr: ParsedPaymentQr) => {
+    setQrOpen(false);
+    // Chuyến có quỹ (chưa đóng, đã có người đóng) thì hỏi nguồn chi; còn lại mặc định cá nhân ứng
+    if (fundAvailable && fundHasContributions) {
+      setPendingQr(qr);
+      return;
+    }
+    startFromQr(qr, "member");
+  };
 
   /** Hộp xác nhận "số dư quỹ trước → sau"; trả về false nếu người dùng không đồng ý. */
   const confirmFundImpact = (change: ExpenseChange): Promise<boolean> => {
@@ -309,15 +367,70 @@ export const ExpensesTab = ({
         </Card>
       )}
 
+      <QrScannerDialog
+        onOpenChange={setQrOpen}
+        onScanned={handleScanned}
+        open={qrOpen}
+      />
+
+      <Dialog onOpenChange={(o) => !o && setPendingQr(null)} open={!!pendingQr}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingQr?.merchantName ?? "Thanh toán QR"}
+              {pendingQr?.amount
+                ? ` · ${formatCurrency(pendingQr.amount)}`
+                : ""}
+            </DialogTitle>
+            <DialogDescription>Khoản này lấy tiền từ đâu?</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={() => {
+                if (pendingQr) startFromQr(pendingQr, "fund");
+                setPendingQr(null);
+              }}
+            >
+              Chi từ quỹ chung
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingQr) startFromQr(pendingQr, "member");
+                setPendingQr(null);
+              }}
+              variant="outline"
+            >
+              Cá nhân ứng trước
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Expense list */}
       <Card className="border-none shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Danh sách chi tiêu</CardTitle>
           {canEdit && !isAdding && !editingExpenseId && (
-            <Button size="sm" onClick={() => setIsAdding(true)}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              Thêm chi tiêu
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setQrOpen(true)}
+                size="sm"
+                variant="outline"
+              >
+                <ScanLine className="mr-1 h-3.5 w-3.5" />
+                Quét QR
+              </Button>
+              <Button
+                onClick={() => {
+                  setPrefill(undefined);
+                  setIsAdding(true);
+                }}
+                size="sm"
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Thêm chi tiêu
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -336,8 +449,13 @@ export const ExpensesTab = ({
           {isAdding && canEdit && (
             <div className="mb-4">
               <AddExpenseForm
-                key="new"
+                key={
+                  prefill
+                    ? `qr-${prefill.payment.accountNumber}-${prefill.amount ?? 0}`
+                    : "new"
+                }
                 costMembers={costMembers}
+                prefill={prefill}
                 fundAvailable={fundAvailable}
                 fundHasContributions={fundHasContributions}
                 onSubmit={onAddExpense}
