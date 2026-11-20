@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/select";
 import { FUND_COPY } from "@/constants/fund";
 import { formatCurrencyInput, parseCurrencyInput } from "@/utils/format";
+import type { QrDraft } from "@/utils/qrPending";
 
-import { type QrPaymentInfo, QrPaymentSection } from "./QrPaymentSection";
+import { QrPaymentSection } from "./QrPaymentSection";
 import type {
   CreateExpenseInput,
   ExpenseWithId,
@@ -59,16 +60,9 @@ const SPLIT_METHODS: { value: SplitMethod; label: string }[] = [
 ];
 
 /** Dữ liệu điền sẵn khi tạo khoản chi từ mã QR thanh toán */
-export interface ExpensePrefill {
-  description: string;
-  amount?: number;
-  category: ExpenseCategory;
-  note: string;
-  /** Nguồn chi đã chọn ở bước quét; bỏ trống = theo mặc định của form */
-  paidFrom?: "fund" | "member";
-  payment: QrPaymentInfo;
-  /** Cảnh báo có thể trùng khoản đã ghi */
-  duplicateWarning?: string;
+export interface ExpensePrefill extends QrDraft {
+  /** Mở ngay hộp "Bạn đã chuyển khoản chưa?" (khi quay lại từ app ngân hàng) */
+  askConfirm?: boolean;
 }
 
 interface AddExpenseFormProps {
@@ -113,7 +107,9 @@ export const AddExpenseForm = ({
       ? toDateInputStr(initialData.date)
       : new Date().toISOString().split("T")[0]
   );
-  const [paidBy, setPaidBy] = useState(initialData?.paidBy ?? "");
+  const [paidBy, setPaidBy] = useState(
+    initialData?.paidBy ?? prefill?.paidBy ?? ""
+  );
   // Mặc định chi từ quỹ khi chuyến có quỹ; khoản cũ giữ nguồn chi của nó
   const [paidFrom, setPaidFrom] = useState<"fund" | "member">(
     initialData?.paidFrom ??
@@ -123,13 +119,13 @@ export const AddExpenseForm = ({
   const [showFundWarning, setShowFundWarning] = useState(false);
   const showSourcePicker = fundAvailable || initialData?.paidFrom === "fund";
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(
-    initialData?.splitMethod ?? "equal"
+    initialData?.splitMethod ?? prefill?.splitMethod ?? "equal"
   );
   const [splitBetween, setSplitBetween] = useState<string[]>(
-    initialData?.splitBetween ?? costMembers
+    initialData?.splitBetween ?? prefill?.splitBetween ?? costMembers
   );
   const [splitDetails, setSplitDetails] = useState<Record<string, number>>(
-    initialData?.splitDetails ?? {}
+    initialData?.splitDetails ?? prefill?.splitDetails ?? {}
   );
   const [note, setNote] = useState(initialData?.note ?? prefill?.note ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -499,7 +495,21 @@ export const AddExpenseForm = ({
           {prefill && !isEditMode && (
             <QrPaymentSection
               amount={amount}
+              askOnMount={!!prefill.askConfirm}
               confirmed={paymentConfirmed}
+              getDraft={() => ({
+                description,
+                amount,
+                category,
+                note,
+                paidFrom,
+                paidBy,
+                splitMethod,
+                splitBetween,
+                splitDetails,
+                payment: prefill.payment,
+                duplicateWarning: prefill.duplicateWarning,
+              })}
               info={prefill.payment}
               onConfirmedChange={setPaymentConfirmed}
             />

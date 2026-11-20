@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import type { ExpenseSummary } from "@/services/expenseService";
 import { formatCurrency, timestampToDateStr } from "@/utils/format";
 import { type ExpenseChange, previewFundBalance } from "@/utils/fundCalc";
+import { clearPendingQr, loadPendingQr } from "@/utils/qrPending";
 import { guessCategory, type ParsedPaymentQr } from "@/utils/vietQr";
 
 import { AddExpenseForm, type ExpensePrefill } from "./AddExpenseForm";
@@ -167,6 +168,17 @@ export const ExpensesTab = ({
     editingExpenseId !== null
       ? (expenses.find((e) => e.id === editingExpenseId) ?? null)
       : null;
+
+  // Quay về từ app ngân hàng (trang bị tải lại): khôi phục form và hỏi đã chuyển khoản chưa
+  useEffect(() => {
+    if (!canEdit) return;
+    const draft = loadPendingQr();
+    if (!draft) return;
+    clearPendingQr();
+    setPrefill({ ...draft, askConfirm: true });
+    setEditingExpenseId(null);
+    setIsAdding(true);
+  }, [canEdit]);
 
   // Tab Quỹ bấm "Thêm chi từ quỹ" → mở sẵn form thêm
   useEffect(() => {

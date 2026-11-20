@@ -20,21 +20,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/utils/format";
+import { clearPendingQr, type QrDraft, savePendingQr } from "@/utils/qrPending";
 import { BANK_APPS, buildPayUrl } from "@/utils/vietQr";
 
-export interface QrPaymentInfo {
-  merchantName?: string;
-  bankBin?: string;
-  bankName?: string;
-  accountNumber?: string;
-  memo?: string;
-}
+export type QrPaymentInfo = QrDraft["payment"];
 
 interface QrPaymentSectionProps {
   info: QrPaymentInfo;
   /** Số tiền đang nhập trong form */
   amount: number;
   confirmed: boolean;
+  /** Bản nháp hiện tại của form, lưu lại trước khi rời sang app ngân hàng */
+  getDraft: () => QrDraft;
+  /** Hỏi xác nhận ngay khi mở (khôi phục sau khi quay về từ app ngân hàng) */
+  askOnMount?: boolean;
   onConfirmedChange: (v: boolean) => void;
 }
 
@@ -57,10 +56,12 @@ export const QrPaymentSection = ({
   info,
   amount,
   confirmed,
+  getDraft,
+  askOnMount = false,
   onConfirmedChange,
 }: QrPaymentSectionProps) => {
   const [appId, setAppId] = useState(readSavedApp);
-  const [askConfirm, setAskConfirm] = useState(false);
+  const [askConfirm, setAskConfirm] = useState(askOnMount);
   const openedRef = useRef(false);
 
   const url = buildPayUrl({
@@ -75,14 +76,21 @@ export const QrPaymentSection = ({
 
   // Quay lại Tripkeo sau khi mở app ngân hàng → hỏi đã chuyển chưa
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && openedRef.current) {
-        openedRef.current = false;
-        setAskConfirm(true);
-      }
+    const onBack = () => {
+      if (!openedRef.current) return;
+      if (document.visibilityState === "hidden") return;
+      openedRef.current = false;
+      clearPendingQr();
+      setAskConfirm(true);
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
+    window.addEventListener("pageshow", onBack);
+    return () => {
+      document.removeEventListener("visibilitychange", onBack);
+      window.removeEventListener("focus", onBack);
+      window.removeEventListener("pageshow", onBack);
+    };
   }, []);
 
   const copy = async (text: string, label: string) => {
@@ -101,10 +109,10 @@ export const QrPaymentSection = ({
     } catch {
       // bỏ qua
     }
+    // Lưu bản nháp rồi chuyển trang: nếu trang bị tải lại khi quay về thì khôi phục được
+    savePendingQr(getDraft());
     openedRef.current = true;
-    // Mở tab mới để form đang nhập không bị mất khi quay lại; nếu bị chặn thì chuyển trang
-    const opened = window.open(url, "_blank", "noopener");
-    if (!opened) window.location.href = url;
+    window.location.href = url;
   };
 
   return (

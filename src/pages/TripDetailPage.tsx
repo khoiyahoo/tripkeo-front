@@ -55,6 +55,7 @@ import {
   getStatusLabel,
   getTripStatus,
 } from "@/utils/format";
+import { loadPendingQr } from "@/utils/qrPending";
 
 const TABS = [
   { value: "itinerary", label: "Lịch trình", icon: ClipboardList },
@@ -74,7 +75,10 @@ const TripDetailPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [linkedPostCount, setLinkedPostCount] = useState(0);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("itinerary");
+  // Quay về từ app ngân hàng thì mở thẳng tab Chi tiêu để hỏi xác nhận
+  const [activeTab, setActiveTab] = useState(() =>
+    loadPendingQr() ? "expenses" : "itinerary"
+  );
   // Tab Quỹ yêu cầu mở sẵn form "Thêm chi từ quỹ" ở tab Chi tiêu
   const [openFundExpense, setOpenFundExpense] = useState(false);
   const {
