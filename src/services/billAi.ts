@@ -61,16 +61,18 @@ export const prepareBillImage = async (
   return { blob, base64: btoa(binary) };
 };
 
-const explain = (status: number): string => {
+const explain = (status: number, detail?: string): string => {
+  const why = detail ? ` (Chi tiết: ${detail})` : "";
   if (status === 401) return "Phiên đăng nhập hết hạn. Hãy đăng nhập lại.";
   if (status === 403) return "Bạn không có quyền đọc bill cho chuyến đi này.";
   if (status === 404)
     return "Máy chủ đọc bill chưa chạy. Khi dev cục bộ hãy dùng `vercel dev`.";
   if (status === 429)
-    return "Đã hết lượt đọc bill (miễn phí) tạm thời. Hãy thử lại sau ít phút.";
+    return `Đã hết lượt đọc bill (miễn phí) tạm thời. Hãy thử lại sau ít phút.${why}`;
   if (status === 500)
     return "Máy chủ chưa được cấu hình đọc bill (thiếu GEMINI_API_KEY).";
-  return "AI chưa đọc được bill. Hãy thử lại hoặc nhập tay.";
+  if (status === 400) return `Ảnh không hợp lệ hoặc quá lớn.${why}`;
+  return `AI chưa đọc được bill. Hãy thử lại hoặc nhập tay.${why}`;
 };
 
 export interface BillReadResult {
@@ -99,7 +101,12 @@ export const readBillWithAi = async (
     }),
     signal: AbortSignal.timeout(45_000),
   });
-  if (!res.ok) throw new Error(explain(res.status));
+  if (!res.ok) {
+    const info = (await res.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(explain(res.status, info?.detail));
+  }
   const data = (await res.json()) as { bill?: unknown };
   return { bill: normalizeBillResult(data.bill), image: prepared.blob };
 };

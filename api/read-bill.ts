@@ -57,6 +57,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   let lastError: unknown;
+  // Tóm tắt từng lần thử (mô hình + mã lỗi) để app hiện lý do thật cho người dùng
+  const attempts: string[] = [];
   for (const model of models) {
     try {
       const response = await ai.models.generateContent({
@@ -65,7 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         config: {
           responseMimeType: "application/json",
           responseJsonSchema: BILL_SCHEMA,
-          maxOutputTokens: 2048,
+          // Chừa chỗ cho phần "suy nghĩ" của mô hình, tránh JSON bị cắt dở
+          maxOutputTokens: 8192,
           temperature: 0,
         },
       });
@@ -73,13 +76,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         bill = extractJson(response.text);
       } catch {
-        return res.status(502).json({ error: "Invalid AI response" });
+        return res.status(502).json({
+          error: "Invalid AI response",
+          detail: `${model}: phản hồi không phải JSON hợp lệ`,
+        });
       }
       return res.status(200).json({ bill, model });
     } catch (err) {
       lastError = err;
       // Chỉ ghi mô hình, mã lỗi và đầu thông báo lỗi (không ghi ảnh hay khóa)
       const e = err as { status?: number; message?: string };
+      attempts.push(
+        `${model}: ${e.status ?? "?"} ${String(e.message ?? "")
+          .replace(/\s+/g, " ")
+          .slice(0, 160)}`
+      );
       console.error(
         "read-bill failed",
         model,
@@ -93,7 +104,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const status = (lastError as { status?: number } | null)?.status;
   if (status === 429) {
-    return res.status(429).json({ error: "AI quota exceeded, try later" });
+    return res.status(429).json({
+      error: "AI quota exceeded, try later",
+      detail: attempts.join(" | "),
+    });
   }
-  return res.status(502).json({ error: "AI service error" });
+  return res
+    .status(502)
+    .json({ error: "AI service error", detail: attempts.join(" | ") });
 }
